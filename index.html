@@ -286,7 +286,7 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
       <div class="form-group">
         <label>Microscopy exclusion for MCHP & CHP</label>
         <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:6px;padding:12px;font-size:12px;color:#856404">
-          ⚠️ Microscopy data (<code>mic_pos</code>, <code>mic_neg</code>) from <strong>MCHP</strong> and <strong>CHP</strong> facility types will automatically be excluded when computing <strong>conf_hf</strong> and <strong>test_hf</strong>. Only RDT data will be used for those facilities.
+          ⚠️ Microscopy data (<code>mic_pos</code>, <code>mic_neg</code>) from <strong>MCHP</strong> and <strong>CHP</strong> facility types will automatically be excluded when computing <strong>conf_hf</strong> and <strong>test_hf</strong>. Only RDT data will be used for those facilities. <strong>CHC, Hospital and Clinic</strong> facilities use full microscopy + RDT data.
         </div>
       </div>
 
@@ -311,15 +311,18 @@ const DS_HF01 = 'ij1VNJwxKCh'; // HF01 Outpatient morbidity
 const DS_HF04 = 'nufVxEfy3Ps'; // HF04 Community Based Services
 const DS_HF05 = 'bAVZhrTQQAP'; // HF05 Hospital Inpatients (admissions)
 
-// Org unit levels (Sierra Leone)
-const LEVEL_DISTRICT  = 3;
+// Org unit levels — Sierra Leone
+const LEVEL_DISTRICT  = 2;
 const LEVEL_CHIEFDOM  = 4;
 const LEVEL_PHU       = 5;
 
-// MCHP / CHP org unit group UIDs — fetched from DHIS2 at runtime
-// (group names matched to "MCHP" and "CHP")
-let MCHP_IDS = new Set();
-let CHP_IDS  = new Set();
+// Facility type org unit group IDs — fetched from DHIS2 at runtime
+// Matched by display name. Microscopy exclusion applies to MCHP + CHP only.
+let MCHP_IDS     = new Set();
+let CHP_IDS      = new Set();
+let CHC_IDS      = new Set();
+let HOSPITAL_IDS = new Set();
+let CLINIC_IDS   = new Set();
 
 // ── Full COC-level variable map (from metadata Excel) ──
 const VAR_MAP = {
@@ -506,7 +509,7 @@ async function startPipeline() {
   // Register steps
   const stepDefs = [
     ['s1a', 'Step 1 · Fetching org unit hierarchy (districts, chiefdoms, PHUs)…'],
-    ['s1b', 'Step 1 · Loading facility type groups (MCHP, CHP, HC…)…'],
+    ['s1b', 'Step 1 · Loading facility type groups (MCHP, CHP, CHC, Hospital, Clinic)…'],
     ['s1c', 'Step 1 · Fetching EPI data from HF01 (Outpatient morbidity)…'],
     ['s1d', 'Step 1 · Fetching EPI data from HF04 (Community Based Services)…'],
     ['s2',  'Step 2 · Outlier detection & Winsorization (per facility per year)…'],
@@ -532,7 +535,7 @@ async function startPipeline() {
     // ── STEP 1b: Facility type groups ────────────────────────────
     setStep('s1b','running');
     await fetchFacilityTypeGroups();
-    setStep('s1b','done',`Step 1 · Facility types loaded (${MCHP_IDS.size} MCHP, ${CHP_IDS.size} CHP)`);
+    setStep('s1b','done',`Step 1 · Facility types loaded — MCHP:${MCHP_IDS.size} CHP:${CHP_IDS.size} CHC:${CHC_IDS.size} Hospital:${HOSPITAL_IDS.size} Clinic:${CLINIC_IDS.size}`);
     setProgress(18);
 
     // ── STEP 1c: HF01 data ───────────────────────────────────────
@@ -565,7 +568,7 @@ async function startPipeline() {
     // ── STEP 3b: MCHP/CHP rule ──────────────────────────────────
     setStep('s3b','running');
     applyMicroscopyCHPRule();
-    setStep('s3b','done',`Step 3 · MCHP/CHP microscopy exclusion applied`);
+    setStep('s3b','done','Step 3 · MCHP/CHP microscopy exclusion applied (CHC, Hospital, Clinic use full data)');
     setProgress(78);
 
     // ── STEP 4: Aggregate ────────────────────────────────────────
@@ -603,10 +606,28 @@ async function startPipeline() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Extract the facility type suffix from a DHIS2 org unit display name.
+ * Sierra Leone naming convention: facility names end with their type,
+ * e.g. "Baiwala MCHP" → "MCHP", "Koidu Government Hospital" → "Hospital".
+ * Returns the last whitespace-delimited token, uppercased.
+ */
+function extractTypeFromName(name) {
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/);
+  return parts[parts.length - 1].toUpperCase();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  STEP 1a — Org unit hierarchy
 // ═══════════════════════════════════════════════════════════════════
 async function fetchOrgHierarchy() {
-  // Fetch all org units at level 5 (PHU) with ancestors
+  // Fetch all Level-5 PHUs with their full ancestor chain.
+  // ancestors[] gives us every level above the facility so we can
+  // resolve district (level 2) and chiefdom (level 4) names.
   const data = await dhis2(
     `/api/organisationUnits.json?level=${LEVEL_PHU}&fields=id,displayName,level,`+
     `ancestors[id,displayName,level]&paging=false`
@@ -615,18 +636,25 @@ async function fetchOrgHierarchy() {
   state.orgHierarchy = {};
 
   ous.forEach(ou => {
+    // Sort ancestors lowest-level first so .find() searches correctly
     const ancestors = (ou.ancestors || []).sort((a,b)=>a.level-b.level);
     const district  = ancestors.find(a=>a.level===LEVEL_DISTRICT);
     const chiefdom  = ancestors.find(a=>a.level===LEVEL_CHIEFDOM);
+
+    // Derive facility type from the last word of the display name
+    // e.g. "Baiwala MCHP" → facType:"MCHP", "Koidu Hospital" → facType:"HOSPITAL"
+    const facType = extractTypeFromName(ou.displayName);
+
     state.orgHierarchy[ou.id] = {
       id:           ou.id,
       name:         ou.displayName,
       level:        ou.level,
+      'type':       facType,                            // last word of facility name
       districtId:   district?.id   || '',
       districtName: district?.displayName || '',
       chiefdomId:   chiefdom?.id   || '',
       chiefdomName: chiefdom?.displayName || '',
-      facilityType: '',   // filled by fetchFacilityTypeGroups
+      facilityType: '',   // overwritten by fetchFacilityTypeGroups with DHIS2 group name
     };
   });
 }
@@ -635,27 +663,45 @@ async function fetchOrgHierarchy() {
 //  STEP 1b — Facility type groups
 // ═══════════════════════════════════════════════════════════════════
 async function fetchFacilityTypeGroups() {
-  // Fetch org unit groups, find MCHP and CHP by name
+  // Fetch all DHIS2 org unit groups and identify the 5 known facility types
+  // by matching their display name prefix: MCHP, CHP, CHC, Hospital, Clinic.
+  //
+  // Why we need this:
+  //   - MCHP and CHP do NOT perform microscopy, so their mic_pos/mic_neg values
+  //     are excluded when computing conf_hf and test_hf (RDT data only).
+  //   - CHC, Hospital, and Clinic perform both tests — full data retained.
+  //   - The facilityType string from the DHIS2 group is stored alongside the
+  //     name-derived `type` and both appear in PHU-level exports.
   const data = await dhis2(
     `/api/organisationUnitGroups.json?fields=id,displayName,organisationUnits[id]&paging=false`
   );
   const groups = data.organisationUnitGroups || [];
 
-  MCHP_IDS = new Set();
-  CHP_IDS  = new Set();
+  // Reset all five ID sets before re-populating
+  MCHP_IDS     = new Set();
+  CHP_IDS      = new Set();
+  CHC_IDS      = new Set();
+  HOSPITAL_IDS = new Set();
+  CLINIC_IDS   = new Set();
 
   groups.forEach(g => {
     const name = (g.displayName || '').toUpperCase().trim();
-    const isMCHP = name === 'MCHP' || name.includes('MATERNAL') || name.startsWith('MCHP');
-    const isCHP  = name === 'CHP'  || name.startsWith('CHP');
-    if (isMCHP || isCHP) {
-      (g.organisationUnits || []).forEach(ou => {
-        if (isMCHP) MCHP_IDS.add(ou.id);
-        if (isCHP)  CHP_IDS.add(ou.id);
-      });
-    }
-    // Also tag facility type in hierarchy
+    // Match on exact name or startsWith — handles variants like "MCHP Facilities"
+    const isMCHP     = name === 'MCHP'     || name.startsWith('MCHP');
+    const isCHP      = name === 'CHP'      || name.startsWith('CHP');
+    const isCHC      = name === 'CHC'      || name.startsWith('CHC');
+    const isHospital = name === 'HOSPITAL' || name.startsWith('HOSPITAL');
+    const isClinic   = name === 'CLINIC'   || name.startsWith('CLINIC');
+
     (g.organisationUnits || []).forEach(ou => {
+      // Populate the correct type set(s)
+      if (isMCHP)     MCHP_IDS.add(ou.id);
+      if (isCHP)      CHP_IDS.add(ou.id);
+      if (isCHC)      CHC_IDS.add(ou.id);
+      if (isHospital) HOSPITAL_IDS.add(ou.id);
+      if (isClinic)   CLINIC_IDS.add(ou.id);
+      // Store the DHIS2 group label on the hierarchy record (last group wins
+      // for the rare facility that belongs to more than one group)
       if (state.orgHierarchy[ou.id]) {
         state.orgHierarchy[ou.id].facilityType = g.displayName;
       }
@@ -664,14 +710,19 @@ async function fetchFacilityTypeGroups() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  STEP 1c/1d — Fetch data values
+//  STEP 1c/1d — Fetch data values from DHIS2
 // ═══════════════════════════════════════════════════════════════════
 async function fetchDataValues(varEntries, periods, stepId) {
-  // Build unique DE+COC list
+  // varEntries: array of [varName, {de, coc, ds}] from VAR_MAP
+  // periods: array of DHIS2 period strings e.g. ["202001","202002",...]
+  // stepId: which progress step to update in the UI
+
+  // Build unique DE UIDs for the API call and a fast COC → varName lookup
   const deCocPairs = varEntries.map(([name, v]) => ({ name, de: v.de, coc: v.coc }));
   const deIds  = [...new Set(deCocPairs.map(p=>p.de))];
 
-  // Batch: 50 org units (level 5), all DEs, batches of 6 months
+  // Sierra Leone has ~1 500 PHUs. Sending all at once would exceed DHIS2's
+  // URL length limit, so we batch: 60 org units × 6 months per request.
   const ouIds = Object.keys(state.orgHierarchy);
   const OU_BATCH = 60;
   const P_BATCH  = 6;
@@ -725,14 +776,30 @@ async function fetchDataValues(varEntries, periods, stepId) {
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
 // ═══════════════════════════════════════════════════════════════════
-//  STEP 2 — IQR Winsorization
+//  STEP 2 — IQR Winsorization (outlier detection & correction)
 // ═══════════════════════════════════════════════════════════════════
 async function winsorize() {
+  // Winsorization is applied independently per facility (PHU) per calendar year.
+  // For each facility-year window, all 12 monthly values of each raw variable
+  // form the distribution. Bounds are computed as:
+  //
+  //   Q1  = pLow  percentile of non-zero monthly values
+  //   Q3  = pHigh percentile of non-zero monthly values
+  //   IQR = Q3 - Q1
+  //   Lower bound = Q1 - 1.5 × IQR
+  //   Upper bound = Q3 + 1.5 × IQR
+  //
+  // Any monthly value outside [Lower, Upper] is clipped (winsorized) to the
+  // nearest bound.  Two values are NEVER corrected:
+  //   • 0  — genuine zero reporting should not be altered
+  //   • null/undefined — treated as missing (filled to 0 in the pre-step below)
+  //
+  // If fewer than 2 non-zero values exist for a facility-year, bounds cannot
+  // be estimated reliably and that group is left untouched.
   const [pLow, pHigh] = state.config.winsorMode === '25_75' ? [0.25, 0.75] : [0.05, 0.95];
-  state.cleanData = {};
+  state.cleanData    = {};
   state.outlierCount = 0;
 
-  // For each facility, for each year, compute bounds per variable
   const ouIds = Object.keys(state.rawData);
   const years = [...new Set(state.config.periods.map(p=>p.slice(0,4)))];
 
@@ -740,47 +807,62 @@ async function winsorize() {
     state.cleanData[ouId] = {};
     const ouData = state.rawData[ouId];
 
-    // Copy all periods, fill NA with 0
+    // ── Pre-step: copy raw data into cleanData, replacing null/undefined with 0 ──
+    // We fill missing values with 0 because a missing monthly report for a facility
+    // most likely means nothing was reported (i.e. effectively zero activity).
     Object.keys(ouData).forEach(period => {
       state.cleanData[ouId][period] = {};
       WIN_TARGETS.forEach(vn => {
         const raw = ouData[period][vn];
-        // Fill NA with 0
         state.cleanData[ouId][period][vn] = (raw === null || raw === undefined) ? 0 : raw;
       });
     });
 
-    // Per year, per variable: compute bounds from monthly vals
+    // ── Main step: compute Winsorization bounds per year per variable ──
     years.forEach(yr => {
+      // All period strings for this calendar year that fall within our config range
       const yearPeriods = state.config.periods.filter(p=>p.startsWith(yr));
+
       WIN_TARGETS.forEach(vn => {
-        // Collect monthly values for this ou-year
+        // Collect the facility's monthly values for this variable-year,
+        // excluding zeros (they don't participate in percentile estimation)
         const vals = yearPeriods
           .map(p => state.cleanData[ouId]?.[p]?.[vn])
-          .filter(v => v !== null && v !== undefined && v !== 0); // exclude 0 from percentile calc
+          .filter(v => v !== null && v !== undefined && v !== 0);
 
-        if (vals.length < 2) return; // too few — skip
+        if (vals.length < 2) return; // need at least 2 points for IQR
 
         const sorted = [...vals].sort((a,b)=>a-b);
-        const q1 = percentile(sorted, pLow);
-        const q3 = percentile(sorted, pHigh);
+        const q1  = percentile(sorted, pLow);
+        const q3  = percentile(sorted, pHigh);
         const iqr = q3 - q1;
         const lo  = q1 - 1.5 * iqr;
         const hi  = q3 + 1.5 * iqr;
 
+        // Apply bounds month by month — skip zeros and missing
         yearPeriods.forEach(p => {
           if (!state.cleanData[ouId]?.[p]) return;
           const v = state.cleanData[ouId][p][vn];
-          // Skip 0 and null
-          if (v === 0 || v === null || v === undefined) return;
-          if (v < lo) { state.cleanData[ouId][p][vn] = lo; state.outlierCount++; }
-          else if (v > hi) { state.cleanData[ouId][p][vn] = hi; state.outlierCount++; }
+          if (v === 0 || v === null || v === undefined) return; // preserve zeros
+          if (v < lo) {
+            state.cleanData[ouId][p][vn] = lo;
+            state.outlierCount++;
+          } else if (v > hi) {
+            state.cleanData[ouId][p][vn] = hi;
+            state.outlierCount++;
+          }
         });
       });
     });
   });
 }
 
+/**
+ * Linear-interpolation percentile on a pre-sorted array.
+ * Equivalent to numpy's np.percentile(..., interpolation='linear').
+ * @param {number[]} sorted - ascending sorted values
+ * @param {number}   p      - fractional percentile 0..1
+ */
 function percentile(sorted, p) {
   if (!sorted.length) return 0;
   const idx = p * (sorted.length - 1);
@@ -788,12 +870,20 @@ function percentile(sorted, p) {
   return lo===hi ? sorted[lo] : sorted[lo] + (sorted[hi]-sorted[lo])*(idx-lo);
 }
 
+/** Return the total outlier cell count accumulated during winsorization. */
 function countOutliers() { return state.outlierCount || 0; }
 
 // ═══════════════════════════════════════════════════════════════════
 //  STEP 3 — Compute derived variables
 // ═══════════════════════════════════════════════════════════════════
 function computeVariables() {
+  // Walk through COMPUTE_STEPS in order. Each step reads already-computed
+  // values from the same `row` object, so later steps can depend on earlier
+  // ones (e.g. conf = conf_hf + conf_com depends on conf_hf which was just set).
+  //
+  // Operations:
+  //   rowsum   → sum all named inputs, treating missing as 0
+  //   subtract → input[0] - input[1], treating missing as 0
   state.computedData = {};
 
   Object.keys(state.cleanData).forEach(ouId => {
@@ -801,7 +891,9 @@ function computeVariables() {
     const ouClean = state.cleanData[ouId];
 
     Object.keys(ouClean).forEach(period => {
-      const row = { ...ouClean[period] }; // start with cleaned raw vars
+      // Start with a copy of all cleaned raw variables so computed fields
+      // can reference both raw inputs and previously computed intermediates
+      const row = { ...ouClean[period] };
       state.computedData[ouId][period] = row;
 
       COMPUTE_STEPS.forEach(([outVar, op, inputs]) => {
@@ -809,6 +901,7 @@ function computeVariables() {
         if (op === 'rowsum') {
           row[outVar] = vals.reduce((a,b)=>a+b, 0);
         } else if (op === 'subtract') {
+          // subtract: first operand minus second operand
           row[outVar] = (vals[0] || 0) - (vals[1] || 0);
         }
       });
@@ -817,28 +910,44 @@ function computeVariables() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  STEP 3b — MCHP/CHP microscopy exclusion
+//  STEP 3b — MCHP/CHP microscopy exclusion rule
 // ═══════════════════════════════════════════════════════════════════
 function applyMicroscopyCHPRule() {
+  // MCHP (Maternal & Child Health Post) and CHP (Community Health Post) are
+  // peripheral facilities that do NOT have microscopy capacity.  Any microscopy
+  // values they report are considered data-entry errors and must not be included
+  // when computing confirmed cases or total tests.
+  //
+  // For MCHP / CHP only:
+  //   conf_hf  = rdt_pos                    (remove mic_pos contribution)
+  //   test_hf  = rdt_neg + rdt_pos          (remove mic_neg + mic_pos contribution)
+  //
+  // All downstream variables that depend on conf_hf / test_hf are then
+  // re-derived to stay consistent:
+  //   conf, test, confirmed_not_treated*, confirmed_and_treated*
+  //
+  // CHC, Hospital, and Clinic are NOT affected — their microscopy data is valid.
   const mchpCHP = new Set([...MCHP_IDS, ...CHP_IDS]);
 
-  // Recompute conf_hf and test_hf for MCHP/CHP: exclude mic contributions
   Object.keys(state.computedData).forEach(ouId => {
-    if (!mchpCHP.has(ouId)) return;
+    if (!mchpCHP.has(ouId)) return; // only touch MCHP / CHP
 
     Object.keys(state.computedData[ouId]).forEach(period => {
       const row = state.computedData[ouId][period];
-      // conf_hf = rdt_pos only (not mic_pos)
+
+      // Override conf_hf and test_hf — RDT only
       row['conf_hf'] = row['rdt_pos'] || 0;
-      // test_hf = rdt_neg + rdt_pos only (not mic)
       row['test_hf'] = (row['rdt_neg'] || 0) + (row['rdt_pos'] || 0);
-      // Re-derive downstream
-      row['conf']   = (row['conf_hf']||0) + (row['conf_com']||0);
-      row['test']   = (row['test_hf']||0) + (row['test_com']||0);
-      row['confirmed_not_treated_hf'] = (row['conf_hf']||0) - (row['maltreat_hf']||0);
-      row['confirmed_not_treated'] = (row['confirmed_not_treated_hf']||0)+(row['confirmed_not_treated_com']||0);
-      row['confirmed_and_treated_hf'] = (row['conf_hf']||0) - (row['confirmed_not_treated_hf']||0);
-      row['confirmed_and_treated'] = (row['confirmed_and_treated_hf']||0)+(row['confirmed_and_treated_com']||0);
+
+      // Re-derive total conf and test
+      row['conf'] = (row['conf_hf'] || 0) + (row['conf_com'] || 0);
+      row['test'] = (row['test_hf'] || 0) + (row['test_com'] || 0);
+
+      // Re-derive treatment gap metrics
+      row['confirmed_not_treated_hf']  = (row['conf_hf'] || 0) - (row['maltreat_hf'] || 0);
+      row['confirmed_not_treated']     = (row['confirmed_not_treated_hf'] || 0) + (row['confirmed_not_treated_com'] || 0);
+      row['confirmed_and_treated_hf']  = (row['conf_hf'] || 0) - (row['confirmed_not_treated_hf'] || 0);
+      row['confirmed_and_treated']     = (row['confirmed_and_treated_hf'] || 0) + (row['confirmed_and_treated_com'] || 0);
     });
   });
 }
@@ -858,53 +967,80 @@ const COMPUTED_VARS = [
   'opd',
 ];
 
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 4 — Aggregate to geographic level
+// ═══════════════════════════════════════════════════════════════════
 function aggregateLevel(level) {
-  // level: 'district' | 'chiefdom' | 'phu'
+  // Produces two flat record arrays for the given level: monthly and yearly.
+  //
+  // Output columns per level:
+  //   district  → district | year [+ month + period for monthly] | indicators
+  //   chiefdom  → district + chiefdom | year [+ month + period]  | indicators
+  //   phu       → district + chiefdom + phu + facility_type + type | year [+ month + period] | indicators
+  //
+  // `facility_type` : DHIS2 org unit group label (e.g. "MCHP")
+  // `type`          : last word of the facility display name (e.g. "MCHP" from "Baiwala MCHP")
+  //                   — useful as a quick filter without needing the group join
   const periods = state.config.periods;
   const years   = [...new Set(periods.map(p=>p.slice(0,4)))];
 
-  const monthly = {}; // key -> { metadata, vars... }
-  const yearly  = {};
+  const monthly = {}; // accumulator keyed by geo-unit|period
+  const yearly  = {}; // accumulator keyed by geo-unit|year
 
   Object.keys(state.computedData).forEach(ouId => {
     const ou = state.orgHierarchy[ouId];
-    if (!ou) return;
+    if (!ou) return; // skip if no hierarchy info (shouldn't happen)
 
+    // Build the metadata prefix and composite key root for each level
     let key_monthly_prefix, key_yearly_prefix;
     let meta_monthly, meta_yearly;
 
     if (level === 'phu') {
+      // PHU level: every individual facility is its own row
       key_monthly_prefix = ouId;
-      meta_monthly = { district: ou.districtName, chiefdom: ou.chiefdomName, phu: ou.name, facility_type: ou.facilityType||'' };
-      key_yearly_prefix = ouId;
-      meta_yearly  = { ...meta_monthly };
+      key_yearly_prefix  = ouId;
+      meta_monthly = {
+        district:      ou.districtName,
+        chiefdom:      ou.chiefdomName,
+        phu:           ou.name,
+        facility_type: ou.facilityType || '', // from DHIS2 org unit group
+        'type':          ou['type']       || '', // last word of facility name e.g. "MCHP"
+      };
+      meta_yearly = { ...meta_monthly };
+
     } else if (level === 'chiefdom') {
+      // Chiefdom level: sum all PHUs within the same chiefdom
       key_monthly_prefix = ou.chiefdomId;
+      key_yearly_prefix  = ou.chiefdomId;
       meta_monthly = { district: ou.districtName, chiefdom: ou.chiefdomName };
-      key_yearly_prefix = ou.chiefdomId;
       meta_yearly  = { ...meta_monthly };
-    } else { // district
+
+    } else {
+      // District level: sum all PHUs within the same district
       key_monthly_prefix = ou.districtId;
+      key_yearly_prefix  = ou.districtId;
       meta_monthly = { district: ou.districtName };
-      key_yearly_prefix = ou.districtId;
       meta_yearly  = { ...meta_monthly };
     }
 
     periods.forEach(period => {
       const row = state.computedData[ouId]?.[period];
-      if (!row) return;
-      const year = period.slice(0,4);
-      const mKey = `${key_monthly_prefix}|${period}`;
-      const yKey = `${key_yearly_prefix}|${year}`;
+      if (!row) return; // no data for this facility-period — skip
 
-      // Monthly accumulate
+      const year  = period.slice(0,4);
+      const month = period.slice(4,6); // zero-padded 01–12
+      const mKey  = `${key_monthly_prefix}|${period}`;
+      const yKey  = `${key_yearly_prefix}|${year}`;
+
+      // ── Monthly accumulate ──
+      // First encounter: initialise the row with metadata + time columns
       if (!monthly[mKey]) {
-        monthly[mKey] = { ...meta_monthly, period };
+        monthly[mKey] = { ...meta_monthly, year, month, period };
         COMPUTED_VARS.forEach(v => monthly[mKey][v] = 0);
       }
       COMPUTED_VARS.forEach(v => monthly[mKey][v] += (row[v]||0));
 
-      // Yearly accumulate
+      // ── Yearly accumulate ──
       if (!yearly[yKey]) {
         yearly[yKey] = { ...meta_yearly, year };
         COMPUTED_VARS.forEach(v => yearly[yKey][v] = 0);
@@ -957,7 +1093,7 @@ function showResults() {
     <div class="stat-pill">${state.config.periods.length} months processed</div>
     <div class="stat-pill ok">${totalRows.toLocaleString()} facilities</div>
     <div class="stat-pill warn">${countOutliers().toLocaleString()} outliers corrected</div>
-    <div class="stat-pill">${MCHP_IDS.size+CHP_IDS.size} MCHP/CHP filtered</div>
+    <div class="stat-pill warn">${MCHP_IDS.size+CHP_IDS.size} MCHP/CHP (mic excluded) · ${CHC_IDS.size+HOSPITAL_IDS.size+CLINIC_IDS.size} CHC/Hospital/Clinic</div>
   `;
 
   const grid = document.getElementById('dlGrid');
@@ -1034,6 +1170,8 @@ END_YM    = "${cfg.end}"     # YYYY-MM
 P_LOW     = ${pLow} / 100    # Winsorization lower percentile
 P_HIGH    = ${pHigh} / 100   # Winsorization upper percentile
 OU_LEVEL  = 5                # Health facility (PHU) level
+LEVEL_DISTRICT = 2           # District
+LEVEL_CHIEFDOM = 4           # Chiefdom
 OU_BATCH  = 60
 P_BATCH   = 6
 
@@ -1134,7 +1272,15 @@ def dhis2_get(path):
 
 
 def fetch_org_hierarchy():
-    print("Fetching org unit hierarchy (level 5 PHUs)...")
+    """
+    Fetch all Level-5 PHUs with their full ancestor chain.
+    Derives:
+      - district (level 2) and chiefdom (level 4) names from ancestors[]
+      - 'type': last word of the facility display name
+                e.g. "Baiwala MCHP" → type="MCHP"
+                     "Koidu Government Hospital" → type="HOSPITAL"
+    """
+    print(f"Fetching org unit hierarchy (level {OU_LEVEL} PHUs)...")
     data = dhis2_get(
         f"/api/organisationUnits.json?level={OU_LEVEL}"
         "&fields=id,displayName,ancestors[id,displayName,level]&paging=false"
@@ -1142,39 +1288,51 @@ def fetch_org_hierarchy():
     hierarchy = {}
     for ou in data.get("organisationUnits", []):
         anc = sorted(ou.get("ancestors", []), key=lambda a: a["level"])
-        d = next((a for a in anc if a["level"] == 3), None)
-        c = next((a for a in anc if a["level"] == 4), None)
+        d = next((a for a in anc if a["level"] == LEVEL_DISTRICT), None)
+        c = next((a for a in anc if a["level"] == LEVEL_CHIEFDOM), None)
+        # Extract last word of facility name as the 'type' column
+        name_parts = (ou.get("displayName") or "").strip().split()
+        fac_type   = name_parts[-1].upper() if name_parts else ""
         hierarchy[ou["id"]] = {
-            "id": ou["id"], "name": ou["displayName"],
+            "ou_id":         ou["id"],
+            "name":          ou.get("displayName",""),
+            "type":          fac_type,        # e.g. "MCHP", "CHP", "HOSPITAL"
             "district_id":   d["id"]          if d else "",
             "district_name": d["displayName"] if d else "",
             "chiefdom_id":   c["id"]          if c else "",
             "chiefdom_name": c["displayName"] if c else "",
-            "facility_type": "",
+            "facility_type": "",              # overwritten by fetch_facility_types()
         }
     print(f"  → {len(hierarchy)} facilities loaded")
     return hierarchy
 
 
 def fetch_facility_types(hierarchy):
-    print("Loading facility type groups (MCHP / CHP)...")
+    print("Loading facility type groups (MCHP, CHP, CHC, Hospital, Clinic)...")
     data = dhis2_get(
         "/api/organisationUnitGroups.json"
         "?fields=id,displayName,organisationUnits[id]&paging=false"
     )
-    mchp_ids, chp_ids = set(), set()
+    mchp_ids = set(); chp_ids = set(); chc_ids = set()
+    hospital_ids = set(); clinic_ids = set()
     for g in data.get("organisationUnitGroups", []):
-        name = g["displayName"].upper().strip()
-        is_mchp = name == "MCHP" or name.startswith("MCHP")
-        is_chp  = name == "CHP"  or name.startswith("CHP")
+        name = (g.get("displayName") or "").upper().strip()
+        is_mchp     = name == "MCHP"     or name.startswith("MCHP")
+        is_chp      = name == "CHP"      or name.startswith("CHP")
+        is_chc      = name == "CHC"      or name.startswith("CHC")
+        is_hospital = name == "HOSPITAL" or name.startswith("HOSPITAL")
+        is_clinic   = name == "CLINIC"   or name.startswith("CLINIC")
         for ou in g.get("organisationUnits", []):
             oid = ou["id"]
-            if is_mchp: mchp_ids.add(oid)
-            if is_chp:  chp_ids.add(oid)
+            if is_mchp:     mchp_ids.add(oid)
+            if is_chp:      chp_ids.add(oid)
+            if is_chc:      chc_ids.add(oid)
+            if is_hospital: hospital_ids.add(oid)
+            if is_clinic:   clinic_ids.add(oid)
             if oid in hierarchy:
                 hierarchy[oid]["facility_type"] = g["displayName"]
-    print(f"  → {len(mchp_ids)} MCHP, {len(chp_ids)} CHP identified")
-    return mchp_ids, chp_ids
+    print(f"  → MCHP:{len(mchp_ids)} CHP:{len(chp_ids)} CHC:{len(chc_ids)} Hospital:{len(hospital_ids)} Clinic:{len(clinic_ids)}")
+    return mchp_ids, chp_ids, chc_ids, hospital_ids, clinic_ids
 
 
 def fetch_data_values(hierarchy, periods):
@@ -1257,8 +1415,9 @@ def winsorize(df, p_low=${pLow/100}, p_high=${pHigh/100}):
     return df
 
 
-def compute_variables(df, mchp_ids, chp_ids):
+def compute_variables(df, mchp_ids, chp_ids, chc_ids, hospital_ids, clinic_ids):
     print("Computing derived variables...")
+    # Microscopy exclusion applies to MCHP and CHP only
     mchp_chp = mchp_ids | chp_ids
 
     for out_var, op, inputs in COMPUTE_STEPS:
@@ -1269,7 +1428,7 @@ def compute_variables(df, mchp_ids, chp_ids):
         elif op == "sub":
             df[out_var] = df[inputs[0]].fillna(0) - df[inputs[1]].fillna(0)
 
-    # MCHP/CHP microscopy exclusion
+    # MCHP/CHP microscopy exclusion (CHC, Hospital, Clinic keep full mic data)
     print("  Applying MCHP/CHP microscopy exclusion...")
     mchp_chp_mask = df["ou_id"].isin(mchp_chp)
     df.loc[mchp_chp_mask, "conf_hf"]  = df.loc[mchp_chp_mask, "rdt_pos"].fillna(0)
@@ -1289,16 +1448,32 @@ def attach_hierarchy(df, hierarchy):
 
 
 def aggregate(df, level):
-    """Aggregate to district/chiefdom/phu level, monthly and yearly."""
-    key_cols  = {"district": ["district_id","district_name"],
-                 "chiefdom": ["district_id","district_name","chiefdom_id","chiefdom_name"],
-                 "phu":      ["district_id","district_name","chiefdom_id","chiefdom_name","ou_id","name","facility_type"]}
-    group_m = key_cols[level] + ["period"]
-    group_y = key_cols[level] + ["year"]
+    """
+    Aggregate computed indicators to district / chiefdom / phu level.
 
+    Monthly outputs include columns: year, month (01-12), period (YYYYMM).
+    Yearly  outputs include column:  year only.
+
+    PHU-level outputs additionally include:
+      facility_type : DHIS2 org unit group label (e.g. "MCHP")
+      type          : last word of facility name  (e.g. "MCHP" from "Baiwala MCHP")
+    """
+    key_cols = {
+        "district": ["district_id", "district_name"],
+        "chiefdom": ["district_id", "district_name", "chiefdom_id", "chiefdom_name"],
+        "phu":      ["district_id", "district_name", "chiefdom_id", "chiefdom_name",
+                     "ou_id", "name", "facility_type", "type"],
+    }
     df2 = df.copy()
-    df2["year"] = df2["period"].str[:4]
+    df2["year"]  = df2["period"].str[:4]
+    df2["month"] = df2["period"].str[4:6]   # zero-padded 01–12
+
+    # Monthly: group by geo keys + year + month + period
+    group_m = key_cols[level] + ["year", "month", "period"]
     monthly = df2.groupby(group_m)[COMPUTED_VARS].sum().reset_index()
+
+    # Yearly: group by geo keys + year only
+    group_y = key_cols[level] + ["year"]
     yearly  = df2.groupby(group_y)[COMPUTED_VARS].sum().reset_index()
     return monthly, yearly
 
@@ -1314,10 +1489,10 @@ def save_outputs(outputs, start, end):
 def main():
     periods   = gen_periods(START_YM, END_YM)
     hierarchy = fetch_org_hierarchy()
-    mchp_ids, chp_ids = fetch_facility_types(hierarchy)
+    mchp_ids, chp_ids, chc_ids, hospital_ids, clinic_ids = fetch_facility_types(hierarchy)
     raw_df    = fetch_data_values(hierarchy, periods)
     clean_df  = winsorize(raw_df, P_LOW, P_HIGH)
-    comp_df   = compute_variables(clean_df, mchp_ids, chp_ids)
+    comp_df   = compute_variables(clean_df, mchp_ids, chp_ids, chc_ids, hospital_ids, clinic_ids)
     full_df   = attach_hierarchy(comp_df, hierarchy)
 
     outputs = {}
@@ -1370,7 +1545,9 @@ START_YM  <- "${cfg.start}"   # YYYY-MM
 END_YM    <- "${cfg.end}"     # YYYY-MM
 P_LOW     <- ${pLow} / 100
 P_HIGH    <- ${pHigh} / 100
-OU_LEVEL  <- 5
+OU_LEVEL       <- 5   # Health facility (PHU) level
+LEVEL_DISTRICT <- 2   # District
+LEVEL_CHIEFDOM <- 4   # Chiefdom
 OU_BATCH  <- 60
 P_BATCH   <- 6
 
@@ -1434,43 +1611,59 @@ gen_periods <- function(start, end) {
 }
 
 # ── Fetch org hierarchy ───────────────────────────────────────────
+# Returns a tibble of all Level-5 PHUs with district + chiefdom ancestry.
+# Adds 'type': the last word of the facility display name, uppercased.
+# Example: "Baiwala MCHP" → type = "MCHP"
+#          "Koidu Government Hospital" → type = "HOSPITAL"
 fetch_org_hierarchy <- function() {
-  message("Fetching org unit hierarchy...")
+  message("Fetching org unit hierarchy (level ", OU_LEVEL, " PHUs)...")
   data <- dhis2_get(paste0(
     "/api/organisationUnits.json?level=", OU_LEVEL,
     "&fields=id,displayName,ancestors[id,displayName,level]&paging=false"
   ))
   purrr::map_dfr(data$organisationUnits, function(ou) {
     anc <- ou$ancestors[order(sapply(ou$ancestors, "[[", "level"))]
-    d <- Filter(function(a) a$level == 3, anc)
-    c <- Filter(function(a) a$level == 4, anc)
+    d <- Filter(function(a) a$level == LEVEL_DISTRICT, anc)
+    c <- Filter(function(a) a$level == LEVEL_CHIEFDOM, anc)
+    # Extract last word of display name as the type column
+    name_words <- strsplit(trimws(ou$displayName), "\\s+")[[1]]
+    fac_type   <- toupper(tail(name_words, 1))
     tibble::tibble(
       ou_id         = ou$id,
       name          = ou$displayName,
+      type          = fac_type,          # last word, e.g. "MCHP", "CHP", "HOSPITAL"
       district_id   = if (length(d)) d[[1]]$id          else NA_character_,
       district_name = if (length(d)) d[[1]]$displayName else NA_character_,
       chiefdom_id   = if (length(c)) c[[1]]$id          else NA_character_,
       chiefdom_name = if (length(c)) c[[1]]$displayName else NA_character_,
-      facility_type = NA_character_
+      facility_type = NA_character_      # overwritten by fetch_facility_types()
     )
   })
 }
 
 # ── Fetch facility types ──────────────────────────────────────────
 fetch_facility_types <- function(hierarchy) {
-  message("Loading facility type groups...")
+  message("Loading facility type groups (MCHP, CHP, CHC, Hospital, Clinic)...")
   data <- dhis2_get(
     "/api/organisationUnitGroups.json?fields=id,displayName,organisationUnits[id]&paging=false"
   )
   mchp_ids <- character(0); chp_ids <- character(0)
+  chc_ids  <- character(0); hospital_ids <- character(0); clinic_ids <- character(0)
   for (g in data$organisationUnitGroups) {
-    nm <- toupper(trimws(g$displayName))
+    nm  <- toupper(trimws(g$displayName))
     ids <- sapply(g$organisationUnits, "[[", "id")
-    if (nm == "MCHP" || startsWith(nm, "MCHP")) mchp_ids <- c(mchp_ids, ids)
-    if (nm == "CHP"  || startsWith(nm, "CHP"))  chp_ids  <- c(chp_ids, ids)
+    if (nm == "MCHP"     || startsWith(nm, "MCHP"))     mchp_ids     <- c(mchp_ids,     ids)
+    if (nm == "CHP"      || startsWith(nm, "CHP"))      chp_ids      <- c(chp_ids,      ids)
+    if (nm == "CHC"      || startsWith(nm, "CHC"))      chc_ids      <- c(chc_ids,      ids)
+    if (nm == "HOSPITAL" || startsWith(nm, "HOSPITAL")) hospital_ids <- c(hospital_ids, ids)
+    if (nm == "CLINIC"   || startsWith(nm, "CLINIC"))   clinic_ids   <- c(clinic_ids,   ids)
     hierarchy$facility_type[hierarchy$ou_id %in% ids] <- g$displayName
   }
-  list(hierarchy = hierarchy, mchp_ids = mchp_ids, chp_ids = chp_ids)
+  message(sprintf("  → MCHP:%d CHP:%d CHC:%d Hospital:%d Clinic:%d",
+    length(mchp_ids), length(chp_ids), length(chc_ids),
+    length(hospital_ids), length(clinic_ids)))
+  list(hierarchy=hierarchy, mchp_ids=mchp_ids, chp_ids=chp_ids,
+       chc_ids=chc_ids, hospital_ids=hospital_ids, clinic_ids=clinic_ids)
 }
 
 # ── Fetch data values ─────────────────────────────────────────────
@@ -1558,7 +1751,7 @@ rowsum_cols <- function(df, cols) {
   rowSums(df[existing], na.rm = TRUE)
 }
 
-compute_variables <- function(df, mchp_ids, chp_ids) {
+compute_variables <- function(df, mchp_ids, chp_ids, chc_ids, hospital_ids, clinic_ids) {
   message("Computing derived variables...")
   df <- df %>%
     mutate(
@@ -1592,7 +1785,7 @@ compute_variables <- function(df, mchp_ids, chp_ids) {
       opd             = rowsum_cols(., c("opd_0to59m","opd_5py"))
     )
 
-  # MCHP/CHP microscopy exclusion
+  # MCHP/CHP microscopy exclusion (CHC, Hospital, Clinic keep full mic data)
   message("  Applying MCHP/CHP microscopy exclusion...")
   mchp_chp <- c(mchp_ids, chp_ids)
   mask <- df$ou_id %in% mchp_chp
@@ -1620,16 +1813,27 @@ computed_vars <- c(
 )
 
 aggregate_level <- function(df, level) {
+  # key_cols defines the identity columns for each aggregation level.
+  # PHU level includes facility_type (DHIS2 group) and type (last word of name).
   key_cols <- switch(level,
     district = c("district_id","district_name"),
     chiefdom = c("district_id","district_name","chiefdom_id","chiefdom_name"),
-    phu      = c("district_id","district_name","chiefdom_id","chiefdom_name","ou_id","name","facility_type")
+    phu      = c("district_id","district_name","chiefdom_id","chiefdom_name",
+                 "ou_id","name","facility_type","type")
   )
   cv <- computed_vars[computed_vars %in% names(df)]
-  df2 <- df %>% mutate(year = substr(period, 1, 4))
-  monthly <- df2 %>% group_by(across(all_of(c(key_cols,"period")))) %>%
+  df2 <- df %>%
+    mutate(
+      year  = substr(period, 1, 4),
+      month = substr(period, 5, 6)   # 01–12
+    )
+  # Monthly: year + month + period as identifier columns
+  monthly <- df2 %>%
+    group_by(across(all_of(c(key_cols, "year", "month", "period")))) %>%
     summarise(across(all_of(cv), sum, na.rm=TRUE), .groups="drop")
-  yearly  <- df2 %>% group_by(across(all_of(c(key_cols,"year")))) %>%
+  # Yearly: year only
+  yearly <- df2 %>%
+    group_by(across(all_of(c(key_cols, "year")))) %>%
     summarise(across(all_of(cv), sum, na.rm=TRUE), .groups="drop")
   list(monthly=monthly, yearly=yearly)
 }
@@ -1640,10 +1844,11 @@ main <- function() {
   hierarchy <- fetch_org_hierarchy()
   ft        <- fetch_facility_types(hierarchy)
   hierarchy <- ft$hierarchy; mchp_ids <- ft$mchp_ids; chp_ids <- ft$chp_ids
+  chc_ids   <- ft$chc_ids;   hospital_ids <- ft$hospital_ids; clinic_ids <- ft$clinic_ids
 
   raw_df    <- fetch_data_values(hierarchy, periods)
   clean_df  <- winsorize_data(raw_df, P_LOW, P_HIGH)
-  comp_df   <- compute_variables(clean_df, mchp_ids, chp_ids)
+  comp_df   <- compute_variables(clean_df, mchp_ids, chp_ids, chc_ids, hospital_ids, clinic_ids)
 
   # Attach hierarchy
   full_df <- comp_df %>%
