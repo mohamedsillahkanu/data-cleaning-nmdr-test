@@ -173,11 +173,11 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
       </div>
     </div>
 
-    <!-- CARD 2: Reporting Status (stub) -->
-    <div class="action-card disabled" id="reportCard">
-      <div class="card-head" style="background:#6c757d">
-        <div class="card-icon" style="color:#6c757d">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6c757d" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+    <!-- CARD 2: Reporting Status -->
+    <div class="action-card" id="reportCard" onclick="openReportModal()">
+      <div class="card-head">
+        <div class="card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#004080" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
         </div>
         <div>
           <h2>REPORTING STATUS</h2>
@@ -185,16 +185,18 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
         </div>
       </div>
       <div class="card-body">
-        <p>Analyse facility reporting completeness and timeliness across districts and chiefdoms. View coverage maps and generate reporting dashboards for any selected period.</p>
+        <p>Fetches all Level-5 facilities from DHIS2, determines whether each facility reported any EPI data per month (sum of all data elements &gt; 0), and renders two heatmap charts showing reporting patterns over time.</p>
         <div>
-          <span class="card-badge" style="background:#6c757d">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Coming Soon
+          <span class="card-badge">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            DHIS2 Live
           </span>
+          <span class="card-badge gold">All Facilities</span>
+          <span class="card-badge green">2 Heatmaps</span>
         </div>
-        <button class="action-btn ghost" style="margin-top:12px;cursor:not-allowed;opacity:.5" disabled>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-          Configure
+        <button class="action-btn gold" style="margin-top:12px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          View Reporting
         </button>
       </div>
     </div>
@@ -268,6 +270,94 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════
+       REPORTING STATUS — pipeline progress + heatmaps
+  ══════════════════════════════════════════════════════ -->
+  <div id="rsPipelineSection" style="display:none">
+    <div class="progress-panel">
+      <div class="progress-head">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <span id="rsPipelineTitle">Reporting Status Pipeline Running…</span>
+        <span style="margin-left:auto;font-size:12px;opacity:.8" id="rsPipelinePercent">0%</span>
+      </div>
+      <div class="progress-body">
+        <div class="pbar-wrap"><div class="pbar-fill" id="rsPbar" style="width:0%"></div></div>
+        <div class="step-list" id="rsStepList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heatmap results (shown after pipeline finishes) -->
+  <div id="rsHeatmapSection" style="display:none">
+
+    <!-- Customisation controls -->
+    <div style="background:#f8f9fa;border:2px solid #004080;border-radius:8px;padding:18px;margin-bottom:16px">
+      <p style="font-weight:700;color:#004080;margin-bottom:12px;font-size:14px">Chart Options</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;display:block;margin-bottom:4px">Chart Title</label>
+          <input type="text" id="rsChartTitle" class="form-control" value="NMCP Malaria EPI Reporting Status" style="font-size:12px;padding:8px 10px">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;display:block;margin-bottom:4px">X-Axis Label</label>
+          <input type="text" id="rsXLabel" class="form-control" value="Time Period (YYYY-MM)" style="font-size:12px;padding:8px 10px">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;display:block;margin-bottom:4px">Y-Axis Label</label>
+          <input type="text" id="rsYLabel" class="form-control" value="Health Facilities (High to Low Reporting)" style="font-size:12px;padding:8px 10px">
+        </div>
+      </div>
+      <!-- Palette selector -->
+      <p style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;margin-bottom:8px">Color Palette</p>
+      <div id="rsPaletteGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
+      <div style="text-align:center">
+        <button class="action-btn gold" onclick="rsRedrawCharts()" style="padding:8px 20px;font-size:12px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+          Redraw Charts
+        </button>
+        <button class="action-btn ghost" onclick="rsReset()" style="padding:8px 20px;font-size:12px;margin-left:8px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Run Again
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row" id="rsStatsRow"></div>
+
+    <!-- Chart 1: All Facilities -->
+    <div style="background:#f8f9fa;padding:16px;border-radius:8px;border:2px solid #004080;margin-bottom:16px;text-align:center;overflow-x:auto">
+      <div style="display:inline-block;background:#004080;color:#fff;padding:5px 16px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:10px">CHART 1 — ALL FACILITIES</div>
+      <div style="font-size:16px;font-weight:700;color:#004080;margin-bottom:6px" id="rsChart1Title">NMCP Malaria EPI Reporting Status — All Facilities</div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px" id="rsChart1Sub"></div>
+      <canvas id="rsCanvas1" style="border-radius:6px;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.1);border:2px solid #004080;display:block;margin:0 auto;max-width:100%"></canvas>
+      <div style="margin-top:10px">
+        <button class="action-btn" style="padding:8px 18px;font-size:12px;background:#28a745;border-color:#28a745" onclick="rsDownload('rsCanvas1','all_facilities')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Chart 1 (300 DPI)
+        </button>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <hr style="border:none;border-top:3px dashed #004080;margin:16px 0">
+
+    <!-- Chart 2: Active Facilities Only -->
+    <div style="background:#f8f9fa;padding:16px;border-radius:8px;border:2px solid #28a745;margin-bottom:16px;text-align:center;overflow-x:auto">
+      <div style="display:inline-block;background:#28a745;color:#fff;padding:5px 16px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:10px">CHART 2 — ACTIVE FACILITIES ONLY</div>
+      <div style="font-size:16px;font-weight:700;color:#004080;margin-bottom:6px" id="rsChart2Title">NMCP Malaria EPI Reporting Status — Active Facilities Only</div>
+      <div style="font-size:12px;color:#666;margin-bottom:10px" id="rsChart2Sub"></div>
+      <canvas id="rsCanvas2" style="border-radius:6px;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.1);border:2px solid #28a745;display:block;margin:0 auto;max-width:100%"></canvas>
+      <div style="margin-top:10px">
+        <button class="action-btn" style="padding:8px 18px;font-size:12px;background:#28a745;border-color:#28a745" onclick="rsDownload('rsCanvas2','active_facilities')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Chart 2 (300 DPI)
+        </button>
+      </div>
+    </div>
+
+  </div><!-- /rsHeatmapSection -->
+
 </div><!-- /main-body -->
 
 <div class="page-footer">
@@ -329,6 +419,53 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
       <div style="text-align:right;margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
         <button class="action-btn ghost" onclick="closeModal()">Cancel</button>
         <button class="action-btn gold" onclick="startPipeline()" style="display:flex;align-items:center;gap:7px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          Run Pipeline
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     REPORTING STATUS MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        Configure Reporting Status
+      </h3>
+      <button class="modal-close" onclick="closeReportModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info" style="margin-bottom:16px;font-size:12px">
+        Fetches all Level-5 health facilities from DHIS2 and determines whether each facility submitted any EPI data each month. A facility is considered <strong>Reported</strong> if the sum of all malaria data element values for that month is greater than zero.
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Month</label>
+          <input type="month" class="form-control" id="rsCfgStart" value="2020-01">
+          <p class="form-note">First month to check</p>
+        </div>
+        <div class="form-group">
+          <label>End Month</label>
+          <input type="month" class="form-control" id="rsCfgEnd" value="2024-12">
+          <p class="form-note">Last month to check</p>
+        </div>
+      </div>
+
+      <div style="background:#e7f3ff;border:2px solid #004080;border-radius:6px;padding:12px;font-size:12px;color:#004080;margin-bottom:16px">
+        <strong>What gets fetched:</strong> All parent data element UIDs from HF01 (Outpatient morbidity) and HF04 (Community Based Services) — 11 unique data elements across all category option combos. For each facility and month, if the sum across all elements &gt; 0, the facility is marked as reported.
+      </div>
+
+      <div style="text-align:right;margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+        <button class="action-btn ghost" onclick="closeReportModal()">Cancel</button>
+        <button class="action-btn gold" onclick="startReportingPipeline()" style="display:flex;align-items:center;gap:7px">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           Run Pipeline
         </button>
@@ -1968,6 +2105,494 @@ main()
   a.href = URL.createObjectURL(blob);
   a.download = `nmcp_epi_clean_${cfg.start}_${cfg.end}.R`;
   a.click();
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  REPORTING STATUS — Modal, Pipeline & Heatmaps
+// ═══════════════════════════════════════════════════════════════════
+
+// Parent DE UIDs only (not COC UIDs) — DHIS2 will sum across all COCs
+// HF01 Outpatient morbidity + HF04 Community Based Services
+const RS_DE_UIDS = [
+  'FJafyE1kzs4', // Fever case - suspected Malaria
+  'Rijj3Fp9ksg', // Fever case tested for Malaria (Microscopy) - Negative
+  'Sz13vbo2Qwh', // Fever case tested for Malaria (Microscopy) - Positive
+  'mXS2g1AiPsS', // Fever case tested for Malaria (RDT) - Negative
+  'p6zQLDFjSfd', // Fever case tested for Malaria (RDT) - Positive
+  'wU8EdHifSLa', // Malaria treated with ACT <24 hours
+  'XKTCuR0W3YN', // Malaria treated with ACT >24 hours
+  'jkVioQxQcnk', // OPD (New and follow-up curative)
+  'wfaQBIVQxWo', // Fever case (suspected malaria) in HTR and ETR
+  'YWvx4zYdp92', // Fever case tested for Malaria (RDT) in HTR - Negative
+  'T7xH8GwWpEM', // Fever case tested for Malaria (RDT) in HTR - Positive
+  'h3zJa6hAgib', // Malaria treated with ACT in HTR <24 hours
+  'Imkks0HAl7E', // Malaria treated with ACT in HTR >24 hours
+];
+
+// Reporting Status state — kept fully separate from Clean Data state
+let rsState = {
+  config: null,
+  orgHierarchy: {},  // ouId -> { hfCode, name, district, chiefdom }
+  reportData: [],    // [{ hf_uid, Date, status }]
+  selectedPalette: 'bluOrange',
+};
+
+// Color palettes (same as the heatmap tool reference)
+const RS_PALETTES = {
+  bluOrange:    { name: 'Blue / Orange',   colors: ['#0077BB', '#EE7733'], cb: true  },
+  tealOrange:   { name: 'Teal / Orange',   colors: ['#009988', '#EE7733'], cb: true  },
+  navyYellow:   { name: 'Navy / Yellow',   colors: ['#332288', '#CCBB44'], cb: true  },
+  blackYellow:  { name: 'Black / Yellow',  colors: ['#000000', '#DDCC77'], cb: true  },
+  viridis:      { name: 'Viridis',         colors: ['#440154', '#21918c'], cb: true  },
+  redGreen:     { name: 'Red / Green',     colors: ['#dc3545', '#28a745'], cb: false },
+  purpleYellow: { name: 'Purple / Yellow', colors: ['#6f42c1', '#ffc107'], cb: false },
+  blackGold:    { name: 'Black / Gold',    colors: ['#212529', '#ffc107'], cb: false },
+};
+const RS_DPI = 3.125; // 300 DPI
+
+// ── Modal open/close ────────────────────────────────────────────────
+function openReportModal() {
+  document.getElementById('reportModal').classList.add('open');
+}
+function closeReportModal() {
+  document.getElementById('reportModal').classList.remove('open');
+}
+
+// ── Progress helpers (reuse same step-list approach but separate elements) ──
+function rsAddStep(id, text) {
+  const list = document.getElementById('rsStepList');
+  const div  = document.createElement('div');
+  div.className = 'step-item pending';
+  div.id = 'rsstep_' + id;
+  div.innerHTML = `<div class="step-dot"></div><span>${text}</span>`;
+  list.appendChild(div);
+}
+function rsSetStep(id, status, msg) {
+  const el = document.getElementById('rsstep_' + id);
+  if (!el) return;
+  el.className = 'step-item ' + status;
+  const prefix = { running:'» ', done:'✓ ', error:'✗ ', warn:'! ' }[status] || '';
+  if (msg) el.querySelector('span').textContent = prefix + msg;
+}
+function rsSetProgress(pct) {
+  document.getElementById('rsPbar').style.width = pct + '%';
+  document.getElementById('rsPipelinePercent').textContent = Math.round(pct) + '%';
+}
+
+// ── Build the palette selector tiles ───────────────────────────────
+function rsBuildPaletteGrid() {
+  const grid = document.getElementById('rsPaletteGrid');
+  grid.innerHTML = Object.entries(RS_PALETTES).map(([key, p]) => `
+    <div onclick="rsSelectPalette('${key}')" id="rspal_${key}"
+      style="display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:6px;
+             border:2px solid ${key===rsState.selectedPalette?'#004080':'#ddd'};
+             background:${key===rsState.selectedPalette?'#e7f3ff':'#f8f9fa'};
+             cursor:pointer;font-size:11px;font-weight:700;color:#004080;transition:all .2s">
+      <div style="width:16px;height:14px;background:${p.colors[0]};border-radius:2px;border:1px solid #ccc"></div>
+      <div style="width:16px;height:14px;background:${p.colors[1]};border-radius:2px;border:1px solid #ccc"></div>
+      ${p.name}${p.cb?' <span style="color:#28a745;font-size:9px">CB</span>':''}
+    </div>`).join('');
+}
+function rsSelectPalette(key) {
+  rsState.selectedPalette = key;
+  rsBuildPaletteGrid();
+}
+
+// ── Main pipeline ───────────────────────────────────────────────────
+async function startReportingPipeline() {
+  const start = document.getElementById('rsCfgStart').value;
+  const end   = document.getElementById('rsCfgEnd').value;
+  if (!start || !end || start > end) {
+    showAlert('Please select a valid date range.', 'err'); return;
+  }
+
+  // Generate periods list YYYYMM
+  const periods = genPeriods(start, end);   // reuse existing genPeriods()
+  const years   = [...new Set(periods.map(p=>p.slice(0,4)))];
+  const startFmt = start; const endFmt = end;
+  const nPeriods = periods.length;
+
+  rsState.config = { start, end, periods };
+  closeReportModal();
+
+  // Show progress panel, hide heatmaps
+  document.getElementById('rsPipelineSection').style.display = 'block';
+  document.getElementById('rsHeatmapSection').style.display  = 'none';
+  document.getElementById('rsStepList').innerHTML = '';
+
+  // Register steps
+  [
+    ['rs1', `Fetching Level-5 facility hierarchy — district & chiefdom ancestry`],
+    ['rs2', `Assigning sequential HF codes — HF001, HF002…`],
+    ['rs3', `Fetching EPI data — ${RS_DE_UIDS.length} data elements · ${nPeriods} periods (${startFmt} to ${endFmt})`],
+    ['rs4', `Determining report status — sum > 0 = Reported, else Not Reported`],
+    ['rs5', `Building heatmap data — sorting facilities by reporting rate`],
+  ].forEach(([id, txt]) => rsAddStep(id, txt));
+
+  document.getElementById('rsPipelineTitle').textContent = 'Reporting Status Pipeline Running…';
+
+  try {
+    rsSetProgress(2);
+
+    // ── STEP 1: Fetch hierarchy ─────────────────────────────────────
+    rsSetStep('rs1','running');
+    const ouData = await dhis2(
+      `/api/organisationUnits.json?level=${LEVEL_PHU}` +
+      `&fields=id,displayName,ancestors[id,displayName,level]&paging=false`
+    );
+    const ous = ouData.organisationUnits || [];
+
+    // Build hierarchy lookup
+    rsState.orgHierarchy = {};
+    ous.forEach(ou => {
+      const anc = (ou.ancestors || []).sort((a,b)=>a.level-b.level);
+      const district = anc.find(a=>a.level===LEVEL_DISTRICT);
+      const chiefdom = anc.find(a=>a.level===LEVEL_CHIEFDOM);
+      rsState.orgHierarchy[ou.id] = {
+        id:           ou.id,
+        name:         ou.displayName,
+        districtName: district?.displayName || '',
+        chiefdomName: chiefdom?.displayName || '',
+        hfCode:       '',  // assigned in step 2
+      };
+    });
+
+    const nFac = ous.length;
+    const nDistricts = new Set(Object.values(rsState.orgHierarchy).map(o=>o.districtName)).size;
+    rsSetStep('rs1','done',
+      `Hierarchy loaded — ${nFac.toLocaleString()} facilities across ${nDistricts} districts`);
+    rsSetProgress(18);
+
+    // ── STEP 2: Assign HF codes ─────────────────────────────────────
+    rsSetStep('rs2','running');
+    // Sort by district → chiefdom → name for consistent ordering
+    const sortedOus = Object.values(rsState.orgHierarchy).sort((a,b)=>
+      (a.districtName+a.chiefdomName+a.name).localeCompare(b.districtName+b.chiefdomName+b.name)
+    );
+    sortedOus.forEach((ou, i) => {
+      const code = 'HF' + String(i+1).padStart(String(sortedOus.length).length, '0');
+      rsState.orgHierarchy[ou.id].hfCode = code;
+    });
+    rsSetStep('rs2','done',
+      `HF codes assigned — HF001 … HF${String(nFac).padStart(String(nFac).length,'0')} (${nFac.toLocaleString()} facilities)`);
+    rsSetProgress(26);
+
+    // ── STEP 3: Fetch data values ───────────────────────────────────
+    rsSetStep('rs3','running');
+
+    // Batch: 60 org units × 6 periods per request
+    const ouIds    = Object.keys(rsState.orgHierarchy);
+    const OU_BATCH = 60, P_BATCH = 6;
+    const ouBatches = [], pBatches = [];
+    for (let i=0;i<ouIds.length;i+=OU_BATCH)   ouBatches.push(ouIds.slice(i,i+OU_BATCH));
+    for (let i=0;i<periods.length;i+=P_BATCH)  pBatches.push(periods.slice(i,i+P_BATCH));
+
+    // Store raw values: ouId -> period -> sum of all DEs
+    const rawSums = {};  // ouId -> { YYYYMM: number }
+    const total   = ouBatches.length * pBatches.length;
+    let   done    = 0;
+
+    for (const ouBatch of ouBatches) {
+      for (const pBatch of pBatches) {
+        const url = `/api/dataValueSets.json?` +
+          `dataElement=${RS_DE_UIDS.join(',')}&` +
+          `orgUnit=${ouBatch.join(',')}&` +
+          `period=${pBatch.join(',')}&children=false`;
+
+        const resp = await dhis2(url);
+        (resp.dataValues || []).forEach(dv => {
+          const ouId  = dv.orgUnit;
+          const per   = dv.period;
+          const val   = parseFloat(dv.value) || 0;
+          if (!rawSums[ouId]) rawSums[ouId] = {};
+          rawSums[ouId][per] = (rawSums[ouId][per] || 0) + val;
+        });
+
+        done++;
+        const pRange = `${pBatch[0]}→${pBatch[pBatch.length-1]}`;
+        rsSetStep('rs3','running',
+          `Fetching EPI data — batch ${done}/${total} · periods ${pRange}`);
+        await sleep(80);
+      }
+    }
+
+    // Count total values retrieved
+    let totalVals = 0;
+    Object.values(rawSums).forEach(pd => totalVals += Object.keys(pd).length);
+    rsSetStep('rs3','done',
+      `EPI data fetched — ${totalVals.toLocaleString()} facility-period values retrieved`);
+    rsSetProgress(68);
+
+    // ── STEP 4: Determine report status ────────────────────────────
+    rsSetStep('rs4','running');
+
+    rsState.reportData = [];
+    let reportedCount = 0, notReportedCount = 0;
+
+    ouIds.forEach(ouId => {
+      const hfCode = rsState.orgHierarchy[ouId]?.hfCode;
+      if (!hfCode) return;
+      periods.forEach(per => {
+        const yr  = per.slice(0,4);
+        const mo  = per.slice(4,6);
+        const dateStr = `${yr}-${mo}`;
+        const sum    = rawSums[ouId]?.[per] || 0;
+        const status = sum > 0 ? 1 : 0;
+        rsState.reportData.push({ hf_uid: hfCode, Date: dateStr, status });
+        if (status === 1) reportedCount++; else notReportedCount++;
+      });
+    });
+
+    const overallRate = ((reportedCount/(reportedCount+notReportedCount))*100).toFixed(1);
+    rsSetStep('rs4','done',
+      `Report status determined — ${reportedCount.toLocaleString()} reported · ${notReportedCount.toLocaleString()} not reported · ${overallRate}% rate`);
+    rsSetProgress(86);
+
+    // ── STEP 5: Prepare heatmap ─────────────────────────────────────
+    rsSetStep('rs5','running');
+    const allHFCodes    = [...new Set(rsState.reportData.map(r=>r.hf_uid))];
+    const activeHFCodes = allHFCodes.filter(hf =>
+      rsState.reportData.some(r=>r.hf_uid===hf && r.status===1)
+    );
+    const neverCount = allHFCodes.length - activeHFCodes.length;
+
+    rsSetStep('rs5','done',
+      `${allHFCodes.length.toLocaleString()} total facilities · ${activeHFCodes.length.toLocaleString()} active · ${neverCount} never reported`);
+    rsSetProgress(100);
+
+    document.getElementById('rsPipelineTitle').textContent = 'Reporting Status Complete';
+
+    // ── Show heatmap section ────────────────────────────────────────
+    rsBuildPaletteGrid();
+    document.getElementById('rsHeatmapSection').style.display = 'block';
+
+    // Stats pills
+    document.getElementById('rsStatsRow').innerHTML = `
+      <div class="stat-pill">${allHFCodes.length.toLocaleString()} total facilities</div>
+      <div class="stat-pill ok">${activeHFCodes.length.toLocaleString()} active (≥1 report)</div>
+      <div class="stat-pill warn">${neverCount} never reported</div>
+      <div class="stat-pill">${nPeriods} periods · ${start} → ${end}</div>
+      <div class="stat-pill ok">${overallRate}% overall reporting rate</div>
+    `;
+
+    // Draw both heatmaps
+    rsDrawBothCharts();
+
+  } catch(err) {
+    console.error(err);
+    showAlert('Reporting Status error: ' + err.message, 'err');
+    document.querySelectorAll('#rsStepList .step-item.running').forEach(el => {
+      el.className = 'step-item error';
+    });
+  }
+}
+
+// ── Draw / redraw both charts ───────────────────────────────────────
+function rsDrawBothCharts() {
+  const palette = RS_PALETTES[rsState.selectedPalette] || RS_PALETTES.bluOrange;
+  const title   = document.getElementById('rsChartTitle').textContent;
+  const xLabel  = document.getElementById('rsXLabel').value || 'Time Period (YYYY-MM)';
+  const yLabel  = document.getElementById('rsYLabel').value || 'Health Facilities (High to Low Reporting)';
+
+  const allHFCodes    = [...new Set(rsState.reportData.map(r=>r.hf_uid))];
+  const activeHFCodes = allHFCodes.filter(hf =>
+    rsState.reportData.some(r=>r.hf_uid===hf && r.status===1)
+  );
+  const neverCount = allHFCodes.length - activeHFCodes.length;
+  const chartTitle = document.getElementById('rsChartTitle').textContent ||
+                     'NMCP Malaria EPI Reporting Status';
+
+  const t1 = `${chartTitle} — All Facilities`;
+  const t2 = `${chartTitle} — Active Facilities Only (${neverCount} never-reporting excluded)`;
+
+  document.getElementById('rsChart1Title').textContent = t1;
+  document.getElementById('rsChart2Title').textContent = t2;
+  document.getElementById('rsChart1Sub').textContent =
+    `${allHFCodes.length.toLocaleString()} facilities · ${rsState.config.start} to ${rsState.config.end}`;
+  document.getElementById('rsChart2Sub').textContent =
+    `${activeHFCodes.length.toLocaleString()} facilities with at least 1 reported month`;
+
+  rsDrawHeatmap('rsCanvas1', allHFCodes,    t1, xLabel, yLabel, palette);
+  rsDrawHeatmap('rsCanvas2', activeHFCodes, t2, xLabel, yLabel, palette);
+}
+
+function rsRedrawCharts() {
+  // Update title from input before redrawing
+  const newTitle = document.getElementById('rsChartTitle').value || 'NMCP Malaria EPI Reporting Status';
+  document.getElementById('rsChart1Title').textContent = newTitle + ' — All Facilities';
+  rsDrawBothCharts();
+}
+
+// ── Core heatmap renderer (adapted from the reference heatmap tool) ─
+function rsDrawHeatmap(canvasId, hfSubset, title, xLabel, yLabel, palette) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Build per-facility lookup from report data
+  const hfData = {};
+  rsState.reportData.forEach(row => {
+    if (!hfSubset.includes(row.hf_uid)) return;
+    if (!hfData[row.hf_uid]) hfData[row.hf_uid] = {};
+    hfData[row.hf_uid][row.Date] = row.status;
+  });
+
+  const dates  = [...new Set(rsState.reportData.map(r=>r.Date))].sort();
+  const nDates = dates.length;
+  const nHFs   = hfSubset.length;
+  if (!nHFs || !nDates) return;
+
+  // Sort by reporting rate descending (most reliable at top)
+  const sorted = hfSubset.map(hf => {
+    const rate = dates.filter(d => hfData[hf]?.[d] === 1).length / nDates;
+    return { hf, rate };
+  }).sort((a,b) => b.rate - a.rate);
+  const hfIds = sorted.map(s => s.hf);
+
+  // ── Layout (logical pixel space, then scaled to 300 DPI) ──────────
+  const CELL_W  = Math.max(18, Math.floor(900 / nDates));
+  const CELL_H  = Math.max(3,  Math.min(18, Math.floor(700 / nHFs)));
+  const TITLE_H = 60, LEGEND_H = 40, XLABEL_H = 90, XTITLE_H = 28;
+  const YTITLE_W = 28, R_PAD = 20;
+
+  const heatW = CELL_W * nDates;
+  const heatH = CELL_H * nHFs;
+  const mTop  = TITLE_H + LEGEND_H;
+  const mBot  = XLABEL_H + XTITLE_H;
+  const mLeft = YTITLE_W + 10;
+
+  const logW = mLeft + heatW + R_PAD;
+  const logH = mTop  + heatH + mBot;
+
+  canvas.width  = Math.round(logW * RS_DPI);
+  canvas.height = Math.round(logH * RS_DPI);
+  canvas.style.width  = Math.min(logW, 1300) + 'px';
+  canvas.style.height = 'auto';
+
+  ctx.scale(RS_DPI, RS_DPI);
+
+  // White background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, logW, logH);
+
+  const startX = mLeft, startY = mTop;
+
+  // ── Title ───────────────────────────────────────────────────────
+  ctx.fillStyle = '#004080';
+  ctx.font = 'bold 16px Oswald, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  rsWrapText(ctx, title, logW/2, 10, logW-40, 22);
+
+  // ── Legend ──────────────────────────────────────────────────────
+  const legY = TITLE_H + 6, legCX = logW/2;
+  const bW = 20, bH = 14;
+
+  ctx.fillStyle = '#f0f4f8';
+  ctx.strokeStyle = '#004080';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(legCX-140, legY-4, 280, 28);
+  ctx.strokeRect(legCX-140, legY-4, 280, 28);
+
+  // Not Reported swatch
+  ctx.fillStyle = palette.colors[0];
+  ctx.fillRect(legCX-128, legY+2, bW, bH);
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(legCX-128, legY+2, bW, bH);
+  ctx.fillStyle = '#000'; ctx.font = 'bold 12px Oswald, sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('Not Reported (0)', legCX-102, legY+9);
+
+  // Reported swatch
+  ctx.fillStyle = palette.colors[1];
+  ctx.fillRect(legCX+10, legY+2, bW, bH);
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(legCX+10, legY+2, bW, bH);
+  ctx.fillStyle = '#000'; ctx.font = 'bold 12px Oswald, sans-serif';
+  ctx.fillText('Reported (1)', legCX+36, legY+9);
+
+  // ── Cells ───────────────────────────────────────────────────────
+  hfIds.forEach((hf, hi) => {
+    dates.forEach((date, di) => {
+      const status = hfData[hf]?.[date] || 0;
+      ctx.fillStyle = status === 1 ? palette.colors[1] : palette.colors[0];
+      ctx.fillRect(startX + di*CELL_W, startY + hi*CELL_H, CELL_W+0.5, CELL_H+0.5);
+    });
+  });
+
+  // Outer border
+  ctx.strokeStyle = '#004080'; ctx.lineWidth = 2;
+  ctx.strokeRect(startX, startY, heatW, heatH);
+
+  // ── X-axis labels (rotated 90°) ─────────────────────────────────
+  ctx.fillStyle = '#111'; ctx.font = 'bold 11px Oswald, sans-serif';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  const labelInterval = CELL_W >= 12 ? 1 : Math.ceil(14/CELL_W);
+  dates.forEach((date, di) => {
+    if (di % labelInterval !== 0) return;
+    const cx = startX + di*CELL_W + CELL_W/2;
+    ctx.save();
+    ctx.translate(cx, startY + heatH + 6);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(date, 0, 0);
+    ctx.restore();
+  });
+
+  // ── X-axis title ────────────────────────────────────────────────
+  ctx.fillStyle = '#004080'; ctx.font = 'bold 13px Oswald, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillText(xLabel, startX + heatW/2, logH - 4);
+
+  // ── Y-axis title ────────────────────────────────────────────────
+  ctx.save();
+  ctx.fillStyle = '#004080'; ctx.font = 'bold 13px Oswald, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.translate(14, startY + heatH/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText(yLabel, 0, 0);
+  ctx.restore();
+
+  // ── Footer ──────────────────────────────────────────────────────
+  ctx.fillStyle = '#888'; ctx.font = '10px Oswald, sans-serif';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillText(
+    `${nHFs.toLocaleString()} facilities x ${nDates} periods | ICF-SL / NMCP`,
+    logW - 5, logH - 4
+  );
+}
+
+// ── Text wrap helper ────────────────────────────────────────────────
+function rsWrapText(ctx, text, x, y, maxW, lh) {
+  const words = text.split(' ');
+  let line = '', cy = y;
+  words.forEach(word => {
+    const test = line + (line ? ' ' : '') + word;
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, x, cy); line = word; cy += lh;
+    } else { line = test; }
+  });
+  if (line) ctx.fillText(line, x, cy);
+}
+
+// ── Download a canvas as 300 DPI PNG ───────────────────────────────
+function rsDownload(canvasId, suffix) {
+  const canvas = document.getElementById(canvasId);
+  const safe   = (document.getElementById('rsChartTitle').value || 'reporting_status')
+                  .replace(/[^a-z0-9]/gi,'_').toLowerCase();
+  const a = document.createElement('a');
+  a.download = `${safe}_${suffix}_300dpi.png`;
+  a.href     = canvas.toDataURL('image/png');
+  a.click();
+}
+
+// ── Reset Reporting Status ──────────────────────────────────────────
+function rsReset() {
+  rsState = { config:null, orgHierarchy:{}, reportData:[], selectedPalette:'bluOrange' };
+  document.getElementById('rsPipelineSection').style.display = 'none';
+  document.getElementById('rsHeatmapSection').style.display  = 'none';
+  document.getElementById('rsStepList').innerHTML = '';
+  rsSetProgress(0);
+  openReportModal();
 }
 </script>
 </body>
