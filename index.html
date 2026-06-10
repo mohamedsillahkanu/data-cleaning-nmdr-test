@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NMCP EPI Data Processing Tool — ICF-SL</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-weight:500;min-height:100vh;padding:20px}
+.page-container{max-width:1300px;margin:0 auto}
+
+/* ── Header ── */
+.page-header{background:#004080;color:#fff;padding:24px 30px;text-align:center;border-radius:10px 10px 0 0;margin-bottom:0}
+.logo-row{display:flex;justify-content:center;align-items:center;gap:24px;margin-bottom:12px}
+.logo-box{background:#fff;border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:center}
+.logo-box img{width:90px;height:auto;border-radius:5px}
+.page-header h3{font-size:13px;font-weight:700;letter-spacing:1px;margin:8px 0 4px}
+.page-header .tagline{font-size:10px;font-style:italic;opacity:.9}
+.page-header h1{font-size:22px;font-weight:700;letter-spacing:1px;margin:14px 0 6px}
+.page-header .subtitle{font-size:13px;opacity:.9}
+
+/* ── Main body ── */
+.main-body{background:#fff;border:4px double #004080;border-top:none;border-radius:0 0 10px 10px;padding:28px}
+
+/* ── 2-column card grid ── */
+.card-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+
+.action-card{border:3px solid #004080;border-radius:10px;overflow:hidden;cursor:pointer;transition:all .25s;position:relative}
+.action-card:hover{transform:translateY(-4px);box-shadow:0 8px 28px rgba(0,64,128,.22)}
+.action-card.disabled{cursor:not-allowed;opacity:.55;pointer-events:none}
+
+.card-head{background:#004080;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:14px}
+.card-icon{background:#fff;color:#004080;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;font-weight:700}
+.card-head h2{font-size:17px;font-weight:700;letter-spacing:.5px}
+.card-head p{font-size:11px;opacity:.85;margin-top:3px}
+.card-body{padding:18px 22px;background:#f8f9fa;min-height:120px}
+.card-body p{font-size:13px;line-height:1.65;color:#333;margin-bottom:10px}
+
+.card-badge{display:inline-flex;align-items:center;gap:6px;background:#004080;color:#fff;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;margin-right:6px;margin-bottom:6px}
+.card-badge.gold{background:#ffc107;color:#000}
+.card-badge.green{background:#28a745;color:#fff}
+
+.action-btn{display:inline-flex;align-items:center;gap:8px;margin-top:10px;background:#004080;color:#fff;border:2px solid #004080;border-radius:6px;padding:10px 20px;font-family:'Oswald',Arial,sans-serif;font-size:13px;font-weight:700;text-transform:uppercase;cursor:pointer;transition:all .2s;letter-spacing:.5px}
+.action-btn:hover{background:#0056b3;border-color:#0056b3}
+.action-btn.gold{background:#ffc107;color:#000;border-color:#ffc107}
+.action-btn.gold:hover{background:#e0a800;border-color:#e0a800}
+.action-btn.ghost{background:#fff;color:#004080}
+.action-btn.ghost:hover{background:#004080;color:#fff}
+
+/* ── Modal overlay ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border:4px double #004080;border-radius:12px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto}
+.modal-head{background:#004080;color:#fff;padding:18px 22px;border-radius:8px 8px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-head h3{font-size:17px;font-weight:700;letter-spacing:.5px}
+.modal-close{background:transparent;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+.modal-body{padding:24px}
+
+/* ── Form elements ── */
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-weight:700;color:#004080;font-size:13px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.form-control{width:100%;padding:11px 14px;border:2px solid #004080;border-radius:6px;font-family:'Oswald',Arial,sans-serif;font-size:14px;font-weight:500;color:#000;background:#fff;transition:all .2s}
+.form-control:focus{outline:none;border-color:#0056b3;box-shadow:0 0 0 3px rgba(0,64,128,.1)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-note{font-size:11px;color:#666;margin-top:5px;line-height:1.5}
+
+/* ── Progress panel ── */
+.progress-panel{border:2px solid #004080;border-radius:8px;overflow:hidden;margin-top:20px}
+.progress-head{background:#004080;color:#fff;padding:12px 16px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px}
+.progress-body{padding:16px;background:#0d1117}
+.step-list{display:flex;flex-direction:column;gap:6px}
+.step-item{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:5px;font-size:12px;font-family:'Courier New',monospace;transition:all .3s}
+.step-item.pending{background:#1a1a2e;color:#555}
+.step-item.running{background:#1a2e4a;color:#17a2b8;animation:pulse 1.5s ease-in-out infinite}
+.step-item.done{background:#0a2e0a;color:#28a745}
+.step-item.error{background:#2e0a0a;color:#dc3545}
+.step-item.warn{background:#2e280a;color:#ffc107}
+.step-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:2px}
+.step-item.pending .step-dot{background:#555}
+.step-item.running .step-dot{background:#17a2b8}
+.step-item.done .step-dot{background:#28a745}
+.step-item.error .step-dot{background:#dc3545}
+.step-item.warn .step-dot{background:#ffc107}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.pbar-wrap{height:10px;background:#1a1a2e;border-radius:5px;overflow:hidden;margin:12px 0}
+.pbar-fill{height:100%;background:linear-gradient(90deg,#004080,#17a2b8);border-radius:5px;transition:width .4s ease}
+
+/* ── Results / Downloads ── */
+.results-section{margin-top:20px}
+.results-head{background:#28a745;color:#fff;padding:13px 18px;border-radius:8px 8px 0 0;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px}
+.results-body{border:2px solid #28a745;border-top:none;border-radius:0 0 8px 8px;padding:18px}
+.dl-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+.dl-card{background:#f8f9fa;border:2px solid #004080;border-radius:7px;padding:14px;text-align:center;cursor:pointer;transition:all .2s}
+.dl-card:hover{background:#e7f3ff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,64,128,.15)}
+.dl-card:hover .dl-icon{transform:scale(1.15)}
+.dl-icon{font-size:26px;margin-bottom:6px;transition:transform .2s}
+.dl-card h4{font-size:12px;font-weight:700;color:#004080;margin-bottom:3px}
+.dl-card p{font-size:10px;color:#666}
+
+.stats-row{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.stat-pill{background:#e7f3ff;border:2px solid #004080;border-radius:20px;padding:6px 14px;font-size:12px;font-weight:700;color:#004080}
+.stat-pill.warn{background:#fff3cd;border-color:#ffc107;color:#856404}
+.stat-pill.ok{background:#d4edda;border-color:#28a745;color:#155724}
+
+/* ── Alert ── */
+.alert{padding:12px 16px;border-radius:6px;margin-bottom:14px;font-size:13px;font-weight:500;border:2px solid}
+.alert-info{background:#e7f3ff;border-color:#004080;color:#004080}
+.alert-warn{background:#fff3cd;border-color:#ffc107;color:#856404}
+.alert-err{background:#f8d7da;border-color:#dc3545;color:#721c24}
+
+/* ── Footer ── */
+.page-footer{background:#004080;color:#fff;padding:18px 24px;text-align:center;font-size:12px;line-height:1.7;border-radius:8px;margin-top:20px}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .card-grid{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .dl-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="page-container">
+
+<!-- HEADER -->
+<div class="page-header">
+  <div class="logo-row">
+    <div class="logo-box">
+      <img src="https://github.com/mohamedsillahkanu/gdp-dashboard-2/raw/6c7463b0d5c3be150aafae695a4bcbbd8aeb1499/ICF-SL.jpg" alt="ICF-SL">
+    </div>
+  </div>
+  <h3>Informatics Consultancy Firm – Sierra Leone (ICF-SL)</h3>
+  <p class="tagline">Driving Data-Driven Solutions for Health and Development</p>
+  <h1>NMCP EPI DATA PROCESSING TOOL</h1>
+  <p class="subtitle">National Malaria Control Programme · Routine Health Information System</p>
+</div>
+
+<div class="main-body">
+
+  <div id="alertBox"></div>
+
+  <!-- 2-CARD GRID -->
+  <div class="card-grid">
+
+    <!-- CARD 1: Clean Data -->
+    <div class="action-card" id="cleanCard" onclick="openCleanModal()">
+      <div class="card-head">
+        <div class="card-icon">🧹</div>
+        <div>
+          <h2>CLEAN DATA</h2>
+          <p>Fetch · Winsorize · Compute · Export</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>Pulls all Epi malaria indicators from DHIS2, detects and corrects outliers using the IQR Winsorization method, computes derived variables, and exports clean aggregated files by level and period.</p>
+        <div>
+          <span class="card-badge">📡 DHIS2 Live</span>
+          <span class="card-badge gold">IQR Winsorize</span>
+          <span class="card-badge green">6 Outputs</span>
+        </div>
+        <button class="action-btn gold" style="margin-top:12px">▶ Start Pipeline</button>
+      </div>
+    </div>
+
+    <!-- CARD 2: Reporting Status (stub) -->
+    <div class="action-card disabled" id="reportCard">
+      <div class="card-head" style="background:#6c757d">
+        <div class="card-icon" style="color:#6c757d">📋</div>
+        <div>
+          <h2>REPORTING STATUS</h2>
+          <p>Completeness · Timeliness · Coverage</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <p>Analyse facility reporting completeness and timeliness across districts and chiefdoms. View coverage maps and generate reporting dashboards for any selected period.</p>
+        <div>
+          <span class="card-badge" style="background:#6c757d">🔒 Coming Soon</span>
+        </div>
+        <button class="action-btn ghost" style="margin-top:12px;cursor:not-allowed;opacity:.5" disabled>⚙ Configure</button>
+      </div>
+    </div>
+
+  </div><!-- /card-grid -->
+
+  <!-- ── PIPELINE PROGRESS (shown after config is submitted) ── -->
+  <div id="pipelineSection" style="display:none">
+    <div class="progress-panel">
+      <div class="progress-head">
+        <span>⚙</span>
+        <span id="pipelineTitle">EPI Data Pipeline Running…</span>
+        <span style="margin-left:auto;font-size:12px;opacity:.8" id="pipelinePercent">0%</span>
+      </div>
+      <div class="progress-body">
+        <div class="pbar-wrap"><div class="pbar-fill" id="pbar" style="width:0%"></div></div>
+        <div class="step-list" id="stepList"></div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-section" id="resultsSection" style="display:none">
+      <div class="results-head">✓ Pipeline Complete — Ready to Download</div>
+      <div class="results-body">
+        <div class="stats-row" id="statsRow"></div>
+        <p style="font-size:13px;color:#333;margin-bottom:4px;font-weight:700">Download Clean Aggregated Files:</p>
+        <div class="dl-grid" id="dlGrid"></div>
+        <div style="margin-top:14px;text-align:center">
+          <button class="action-btn gold" onclick="downloadAll()">⬇ Download All (ZIP)</button>
+          <button class="action-btn ghost" onclick="resetPipeline()" style="margin-left:8px">↺ Run Again</button>
+        </div>
+
+        <!-- Code download section -->
+        <div style="margin-top:20px;padding-top:16px;border-top:2px dashed #004080">
+          <p style="font-size:13px;color:#333;font-weight:700;margin-bottom:10px">
+            📥 Reproducible Code — run locally to get the same results:
+          </p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="dl-card" onclick="downloadPythonScript()" style="border-color:#3776ab">
+              <div class="dl-icon">🐍</div>
+              <h4 style="color:#3776ab">Python Script</h4>
+              <p>requests · pandas · openpyxl</p>
+              <p style="margin-top:4px;font-size:10px;color:#3776ab;font-weight:700">nmcp_epi_clean.py</p>
+            </div>
+            <div class="dl-card" onclick="downloadRScript()" style="border-color:#276dc3">
+              <div class="dl-icon">📊</div>
+              <h4 style="color:#276dc3">R Script</h4>
+              <p>httr · dplyr · openxlsx</p>
+              <p style="margin-top:4px;font-size:10px;color:#276dc3;font-weight:700">nmcp_epi_clean.R</p>
+            </div>
+          </div>
+          <p style="font-size:10px;color:#666;margin-top:8px;text-align:center">
+            Scripts use the same date range, variable definitions, winsorization rules, MCHP/CHP exclusion logic, and aggregation as this pipeline.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main-body -->
+
+<div class="page-footer">
+  <strong>National Malaria Control Programme (NMCP) — Ministry of Health, Sierra Leone</strong><br>
+  Technical Partner: Informatics Consultancy Firm – Sierra Leone (ICF-SL) · mdrsl.chaiprod.com<br>
+  <span style="font-size:10px">© 2025 ICF-SL. Powered by DHIS2 HMIS.</span>
+</div>
+</div><!-- /page-container -->
+
+<!-- ════════════════════════════════════════
+     CONFIG MODAL
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="configModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>🧹 Configure EPI Data Pipeline</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info" style="margin-bottom:16px">
+        The pipeline will fetch all malaria EPI indicators directly from DHIS2, apply outlier correction, compute derived variables, and produce clean Excel outputs by level and period.
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Month</label>
+          <input type="month" class="form-control" id="cfgStart" value="2020-01">
+          <p class="form-note">First month of data to pull</p>
+        </div>
+        <div class="form-group">
+          <label>End Month</label>
+          <input type="month" class="form-control" id="cfgEnd" value="2024-12">
+          <p class="form-note">Last month of data to pull</p>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Winsorization Bounds</label>
+        <select class="form-control" id="cfgWinsor">
+          <option value="5_95" selected>Q1 = 5th percentile, Q3 = 95th percentile (recommended)</option>
+          <option value="25_75">Q1 = 25th, Q3 = 75th (standard IQR)</option>
+        </select>
+        <p class="form-note">Per facility per year across months. Zeros and nulls are preserved unchanged.</p>
+      </div>
+
+      <div class="form-group">
+        <label>Microscopy exclusion for MCHP & CHP</label>
+        <div style="background:#fff3cd;border:2px solid #ffc107;border-radius:6px;padding:12px;font-size:12px;color:#856404">
+          ⚠️ Microscopy data (<code>mic_pos</code>, <code>mic_neg</code>) from <strong>MCHP</strong> and <strong>CHP</strong> facility types will automatically be excluded when computing <strong>conf_hf</strong> and <strong>test_hf</strong>. Only RDT data will be used for those facilities.
+        </div>
+      </div>
+
+      <div style="text-align:right;margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+        <button class="action-btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="action-btn gold" onclick="startPipeline()">▶ Run Pipeline</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  CONSTANTS & METADATA
+// ═══════════════════════════════════════════════════════════════════
+const PROXY  = 'https://script.google.com/macros/s/AKfycbyRXc68PYSmDSCYPakAS8Gc9R00kRjmsMYoDujPYMItyquXfwMAJUtRqXLiDlNWbSfDQQ/exec';
+const BASE   = 'https://sl.dhis2.org/hmis23';
+const AUTH   = 'Basic ' + btoa('musa-sillahkanu:Navigator/2024!');
+
+// Dataset UIDs
+const DS_HF01 = 'ij1VNJwxKCh'; // HF01 Outpatient morbidity
+const DS_HF04 = 'nufVxEfy3Ps'; // HF04 Community Based Services
+const DS_HF05 = 'bAVZhrTQQAP'; // HF05 Hospital Inpatients (admissions)
+
+// Org unit levels (Sierra Leone)
+const LEVEL_DISTRICT  = 3;
+const LEVEL_CHIEFDOM  = 4;
+const LEVEL_PHU       = 5;
+
+// MCHP / CHP org unit group UIDs — fetched from DHIS2 at runtime
+// (group names matched to "MCHP" and "CHP")
+let MCHP_IDS = new Set();
+let CHP_IDS  = new Set();
+
+// ── Full COC-level variable map (from metadata Excel) ──
+const VAR_MAP = {
+  fever_susp_0to59m:      { de:'FJafyE1kzs4', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  fever_susp_5to14y:      { de:'FJafyE1kzs4', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  fever_susp_15py:        { de:'FJafyE1kzs4', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  mic_neg_0to59m:         { de:'Rijj3Fp9ksg', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  mic_neg_5to14y:         { de:'Rijj3Fp9ksg', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  mic_neg_15py:           { de:'Rijj3Fp9ksg', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  mic_pos_0to59m:         { de:'Sz13vbo2Qwh', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  mic_pos_5to14y:         { de:'Sz13vbo2Qwh', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  mic_pos_15py:           { de:'Sz13vbo2Qwh', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  rdt_neg_0to59m:         { de:'mXS2g1AiPsS', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  rdt_neg_5to14y:         { de:'mXS2g1AiPsS', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  rdt_neg_15py:           { de:'mXS2g1AiPsS', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  rdt_pos_0to59m:         { de:'p6zQLDFjSfd', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  rdt_pos_5to14y:         { de:'p6zQLDFjSfd', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  rdt_pos_15py:           { de:'p6zQLDFjSfd', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  act_lt24h_0to59m:       { de:'wU8EdHifSLa', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  act_lt24h_5to14y:       { de:'wU8EdHifSLa', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  act_lt24h_15py:         { de:'wU8EdHifSLa', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  act_ov24h_0to59m:       { de:'XKTCuR0W3YN', coc:'m5T8uBNB8aN', ds:DS_HF01 },
+  act_ov24h_5to14y:       { de:'XKTCuR0W3YN', coc:'j7j6iaknOFn', ds:DS_HF01 },
+  act_ov24h_15py:         { de:'XKTCuR0W3YN', coc:'zK1aiw8zFac', ds:DS_HF01 },
+  opd_0to59m:             { de:'jkVioQxQcnk', coc:'HXqTYVuY7MO', ds:DS_HF01 },
+  opd_5py:                { de:'jkVioQxQcnk', coc:'YmxEkqHdy64', ds:DS_HF01 },
+  fever_susp_htr_0to59m:  { de:'wfaQBIVQxWo', coc:'NtjMVmRfvHH', ds:DS_HF04 },
+  fever_susp_htr_5to14y:  { de:'wfaQBIVQxWo', coc:'qDXW7WMLT99', ds:DS_HF04 },
+  fever_susp_htr_15py:    { de:'wfaQBIVQxWo', coc:'mdjRPpvLKdu', ds:DS_HF04 },
+  rdt_htr_neg_0to59m:     { de:'YWvx4zYdp92', coc:'NtjMVmRfvHH', ds:DS_HF04 },
+  rdt_htr_neg_5to14y:     { de:'YWvx4zYdp92', coc:'qDXW7WMLT99', ds:DS_HF04 },
+  rdt_htr_neg_15py:       { de:'YWvx4zYdp92', coc:'mdjRPpvLKdu', ds:DS_HF04 },
+  rdt_htr_pos_0to59m:     { de:'T7xH8GwWpEM', coc:'NtjMVmRfvHH', ds:DS_HF04 },
+  rdt_htr_pos_5to14y:     { de:'T7xH8GwWpEM', coc:'qDXW7WMLT99', ds:DS_HF04 },
+  rdt_htr_pos_15py:       { de:'T7xH8GwWpEM', coc:'mdjRPpvLKdu', ds:DS_HF04 },
+  act_htr_lt24h_0to59m:   { de:'h3zJa6hAgib', coc:'NtjMVmRfvHH', ds:DS_HF04 },
+  act_htr_lt24h_5to14y:   { de:'h3zJa6hAgib', coc:'qDXW7WMLT99', ds:DS_HF04 },
+  act_htr_lt24h_15py:     { de:'h3zJa6hAgib', coc:'mdjRPpvLKdu', ds:DS_HF04 },
+  act_htr_ov24h_2_59y:    { de:'Imkks0HAl7E', coc:'NtjMVmRfvHH', ds:DS_HF04 },
+  act_htr_ov24h_5_14y:    { de:'Imkks0HAl7E', coc:'qDXW7WMLT99', ds:DS_HF04 },
+  act_htr_ov24h_15y:      { de:'Imkks0HAl7E', coc:'mdjRPpvLKdu', ds:DS_HF04 },
+};
+
+// Microscopy variables (to skip for MCHP/CHP)
+const MIC_VARS = ['mic_neg_0to59m','mic_neg_5to14y','mic_neg_15py',
+                  'mic_pos_0to59m','mic_pos_5to14y','mic_pos_15py'];
+
+// Variables that should be zeroed for MCHP/CHP (microscopy contributions to conf/test)
+// We handle this during compute step: use rdt_only conf_hf for those facilities
+
+// Winsorization group-year targets — the raw COC columns
+const WIN_TARGETS = Object.keys(VAR_MAP);
+
+// ── Compute variable formulas (from compute_new_variables file) ──
+// Each entry: [output_var, operation, [...input_vars]]
+// 'rowsum' = sum of inputs (ignoring nulls). 'subtract' = input[0] - input[1]
+const COMPUTE_STEPS = [
+  ['fever_susp',      'rowsum',   ['fever_susp_0to59m','fever_susp_5to14y','fever_susp_15py']],
+  ['fever_susp_htr',  'rowsum',   ['fever_susp_htr_0to59m','fever_susp_htr_5to14y','fever_susp_htr_15py']],
+  ['susp',            'rowsum',   ['fever_susp','fever_susp_htr']],
+  ['mic_neg',         'rowsum',   ['mic_neg_0to59m','mic_neg_5to14y','mic_neg_15py']],
+  ['mic_pos',         'rowsum',   ['mic_pos_0to59m','mic_pos_5to14y','mic_pos_15py']],
+  ['rdt_neg',         'rowsum',   ['rdt_neg_0to59m','rdt_neg_5to14y','rdt_neg_15py']],
+  ['rdt_pos',         'rowsum',   ['rdt_pos_0to59m','rdt_pos_5to14y','rdt_pos_15py']],
+  ['rdt_htr_neg',     'rowsum',   ['rdt_htr_neg_0to59m','rdt_htr_neg_5to14y','rdt_htr_neg_15py']],
+  ['rdt_htr_pos',     'rowsum',   ['rdt_htr_pos_0to59m','rdt_htr_pos_5to14y','rdt_htr_pos_15py']],
+  ['test_hf',         'rowsum',   ['mic_neg','mic_pos','rdt_neg','rdt_pos']], // modified per facility type below
+  ['test_com',        'rowsum',   ['rdt_htr_neg','rdt_htr_pos']],
+  ['test',            'rowsum',   ['test_hf','test_com']],
+  ['conf_hf',         'rowsum',   ['mic_pos','rdt_pos']], // modified per facility type below
+  ['conf_com',        'rowsum',   ['rdt_htr_pos']],
+  ['conf',            'rowsum',   ['conf_hf','conf_com']],
+  ['maltreat_hf',     'rowsum',   ['act_lt24h_0to59m','act_lt24h_5to14y','act_lt24h_15py']],
+  ['maltreat_com',    'rowsum',   ['act_htr_lt24h_0to59m','act_htr_lt24h_5to14y','act_htr_lt24h_15py']],
+  ['maltreat',        'rowsum',   ['maltreat_hf','maltreat_com']],
+  ['maltreat_ov24h_hf','rowsum',  ['act_ov24h_0to59m','act_ov24h_5to14y','act_ov24h_15py']],
+  ['maltreat_ov24h_com','rowsum', ['act_htr_ov24h_2_59y','act_htr_ov24h_5_14y','act_htr_ov24h_15y']],
+  ['maltreat_ov24h',  'rowsum',   ['maltreat_ov24h_hf','maltreat_ov24h_com']],
+  ['confirmed_not_treated_hf','subtract',['conf_hf','maltreat_hf']],
+  ['confirmed_not_treated_com','subtract',['conf_com','maltreat_com']],
+  ['confirmed_not_treated','rowsum',['confirmed_not_treated_hf','confirmed_not_treated_com']],
+  ['confirmed_and_treated_hf','subtract',['conf_hf','confirmed_not_treated_hf']],
+  ['confirmed_and_treated_com','subtract',['conf_com','confirmed_not_treated_com']],
+  ['confirmed_and_treated','rowsum',['confirmed_and_treated_hf','confirmed_and_treated_com']],
+  ['opd',             'rowsum',   ['opd_0to59m','opd_5py']],
+];
+
+// ═══════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════
+let state = {
+  config: null,
+  orgHierarchy: {},    // ouId -> { id, name, level, district, chiefdom, phu, facilityType }
+  rawData: {},         // ouId -> { period -> { varName -> value } }
+  cleanData: {},       // same shape, after winsorization
+  computedData: {},    // ouId -> { period -> { computed_var -> value } }
+  outputs: {},         // { 'district_monthly': [...], ... }
+  steps: [],
+  stepEls: {},
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  UI helpers
+// ═══════════════════════════════════════════════════════════════════
+function openCleanModal() {
+  document.getElementById('configModal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('configModal').classList.remove('open');
+}
+
+function showAlert(msg, type='info') {
+  const box = document.getElementById('alertBox');
+  box.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(()=>{ box.innerHTML=''; }, 7000);
+}
+
+function setProgress(pct) {
+  document.getElementById('pbar').style.width = pct + '%';
+  document.getElementById('pipelinePercent').textContent = Math.round(pct) + '%';
+}
+
+function addStep(id, text) {
+  const list = document.getElementById('stepList');
+  const div = document.createElement('div');
+  div.className = 'step-item pending';
+  div.id = 'step_' + id;
+  div.innerHTML = `<div class="step-dot"></div><span>${text}</span>`;
+  list.appendChild(div);
+  state.stepEls[id] = div;
+}
+
+function setStep(id, status, msg) {
+  const el = state.stepEls[id];
+  if (!el) return;
+  el.className = 'step-item ' + status;
+  const prefix = { running:'⟳ ', done:'✓ ', error:'✗ ', warn:'⚠ ', pending:'' }[status] || '';
+  el.querySelector('span').textContent = prefix + (msg || el.querySelector('span').textContent.replace(/^[⟳✓✗⚠] /,''));
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  DHIS2 fetch via proxy
+// ═══════════════════════════════════════════════════════════════════
+async function dhis2(path) {
+  const url = `${BASE}${path}`;
+  const proxyUrl = `${PROXY}?url=${encodeURIComponent(url)}&Authorization=${encodeURIComponent(AUTH)}`;
+  const r = await fetch(proxyUrl);
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${path}`);
+  return r.json();
+}
+
+// Generate monthly periods between start and end (inclusive)
+function genPeriods(startYM, endYM) {
+  const periods = [];
+  let [y, m] = startYM.split('-').map(Number);
+  const [ey, em] = endYM.split('-').map(Number);
+  while (y < ey || (y === ey && m <= em)) {
+    periods.push(`${y}${String(m).padStart(2,'0')}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return periods;
+}
+
+function periodToYear(p) { return p.slice(0,4); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  PIPELINE
+// ═══════════════════════════════════════════════════════════════════
+async function startPipeline() {
+  const start = document.getElementById('cfgStart').value;
+  const end   = document.getElementById('cfgEnd').value;
+  if (!start || !end || start > end) {
+    showAlert('Please select a valid date range.', 'err'); return;
+  }
+  const winsorMode = document.getElementById('cfgWinsor').value;
+  state.config = { start, end, winsorMode, periods: genPeriods(start, end) };
+
+  closeModal();
+  document.getElementById('pipelineSection').style.display = 'block';
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('stepList').innerHTML = '';
+  state.stepEls = {};
+
+  // Register steps
+  const stepDefs = [
+    ['s1a', 'Step 1 · Fetching org unit hierarchy (districts, chiefdoms, PHUs)…'],
+    ['s1b', 'Step 1 · Loading facility type groups (MCHP, CHP, HC…)…'],
+    ['s1c', 'Step 1 · Fetching EPI data from HF01 (Outpatient morbidity)…'],
+    ['s1d', 'Step 1 · Fetching EPI data from HF04 (Community Based Services)…'],
+    ['s2',  'Step 2 · Outlier detection & Winsorization (per facility per year)…'],
+    ['s3',  'Step 3 · Computing derived variables (conf, test, maltreat…)…'],
+    ['s3b', 'Step 3 · Applying MCHP/CHP microscopy exclusion rule…'],
+    ['s4a', 'Step 4 · Aggregating — District level (monthly + yearly)…'],
+    ['s4b', 'Step 4 · Aggregating — Chiefdom level (monthly + yearly)…'],
+    ['s4c', 'Step 4 · Aggregating — PHU level (monthly + yearly)…'],
+    ['s4d', 'Step 4 · Building Excel workbooks…'],
+  ];
+  stepDefs.forEach(([id, txt]) => addStep(id, txt));
+  document.getElementById('pipelineTitle').textContent = 'EPI Data Pipeline Running…';
+
+  try {
+    setProgress(2);
+
+    // ── STEP 1a: Org unit hierarchy ──────────────────────────────
+    setStep('s1a','running');
+    await fetchOrgHierarchy();
+    setStep('s1a','done',`Step 1 · Org hierarchy loaded (${Object.keys(state.orgHierarchy).length} facilities)`);
+    setProgress(10);
+
+    // ── STEP 1b: Facility type groups ────────────────────────────
+    setStep('s1b','running');
+    await fetchFacilityTypeGroups();
+    setStep('s1b','done',`Step 1 · Facility types loaded (${MCHP_IDS.size} MCHP, ${CHP_IDS.size} CHP)`);
+    setProgress(18);
+
+    // ── STEP 1c: HF01 data ───────────────────────────────────────
+    setStep('s1c','running');
+    const hf01Vars = Object.entries(VAR_MAP).filter(([,v])=>v.ds===DS_HF01);
+    await fetchDataValues(hf01Vars, state.config.periods, 's1c');
+    setStep('s1c','done','Step 1 · HF01 Outpatient data fetched');
+    setProgress(42);
+
+    // ── STEP 1d: HF04 data ───────────────────────────────────────
+    setStep('s1d','running');
+    const hf04Vars = Object.entries(VAR_MAP).filter(([,v])=>v.ds===DS_HF04);
+    await fetchDataValues(hf04Vars, state.config.periods, 's1d');
+    setStep('s1d','done','Step 1 · HF04 Community data fetched');
+    setProgress(55);
+
+    // ── STEP 2: Winsorization ────────────────────────────────────
+    setStep('s2','running');
+    await winsorize();
+    const totalOutliers = countOutliers();
+    setStep('s2','done',`Step 2 · Winsorization done — ${totalOutliers.toLocaleString()} outlier cells corrected`);
+    setProgress(68);
+
+    // ── STEP 3: Compute variables ────────────────────────────────
+    setStep('s3','running');
+    computeVariables();
+    setStep('s3','done','Step 3 · All derived variables computed');
+    setProgress(74);
+
+    // ── STEP 3b: MCHP/CHP rule ──────────────────────────────────
+    setStep('s3b','running');
+    applyMicroscopyCHPRule();
+    setStep('s3b','done',`Step 3 · MCHP/CHP microscopy exclusion applied`);
+    setProgress(78);
+
+    // ── STEP 4: Aggregate ────────────────────────────────────────
+    setStep('s4a','running');
+    aggregateLevel('district');
+    setStep('s4a','done','Step 4 · District aggregation complete');
+    setProgress(84);
+
+    setStep('s4b','running');
+    aggregateLevel('chiefdom');
+    setStep('s4b','done','Step 4 · Chiefdom aggregation complete');
+    setProgress(89);
+
+    setStep('s4c','running');
+    aggregateLevel('phu');
+    setStep('s4c','done','Step 4 · PHU aggregation complete');
+    setProgress(94);
+
+    setStep('s4d','running');
+    buildWorkbooks();
+    setStep('s4d','done','Step 4 · Excel workbooks ready');
+    setProgress(100);
+
+    document.getElementById('pipelineTitle').textContent = '✓ Pipeline Complete';
+    showResults();
+
+  } catch(err) {
+    console.error(err);
+    showAlert('Pipeline error: ' + err.message, 'err');
+    // Mark remaining running steps as error
+    Object.entries(state.stepEls).forEach(([,el])=>{
+      if (el.classList.contains('running')) el.className='step-item error';
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 1a — Org unit hierarchy
+// ═══════════════════════════════════════════════════════════════════
+async function fetchOrgHierarchy() {
+  // Fetch all org units at level 5 (PHU) with ancestors
+  const data = await dhis2(
+    `/api/organisationUnits.json?level=${LEVEL_PHU}&fields=id,displayName,level,`+
+    `ancestors[id,displayName,level]&paging=false`
+  );
+  const ous = data.organisationUnits || [];
+  state.orgHierarchy = {};
+
+  ous.forEach(ou => {
+    const ancestors = (ou.ancestors || []).sort((a,b)=>a.level-b.level);
+    const district  = ancestors.find(a=>a.level===LEVEL_DISTRICT);
+    const chiefdom  = ancestors.find(a=>a.level===LEVEL_CHIEFDOM);
+    state.orgHierarchy[ou.id] = {
+      id:           ou.id,
+      name:         ou.displayName,
+      level:        ou.level,
+      districtId:   district?.id   || '',
+      districtName: district?.displayName || '',
+      chiefdomId:   chiefdom?.id   || '',
+      chiefdomName: chiefdom?.displayName || '',
+      facilityType: '',   // filled by fetchFacilityTypeGroups
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 1b — Facility type groups
+// ═══════════════════════════════════════════════════════════════════
+async function fetchFacilityTypeGroups() {
+  // Fetch org unit groups, find MCHP and CHP by name
+  const data = await dhis2(
+    `/api/organisationUnitGroups.json?fields=id,displayName,organisationUnits[id]&paging=false`
+  );
+  const groups = data.organisationUnitGroups || [];
+
+  MCHP_IDS = new Set();
+  CHP_IDS  = new Set();
+
+  groups.forEach(g => {
+    const name = (g.displayName || '').toUpperCase().trim();
+    const isMCHP = name === 'MCHP' || name.includes('MATERNAL') || name.startsWith('MCHP');
+    const isCHP  = name === 'CHP'  || name.startsWith('CHP');
+    if (isMCHP || isCHP) {
+      (g.organisationUnits || []).forEach(ou => {
+        if (isMCHP) MCHP_IDS.add(ou.id);
+        if (isCHP)  CHP_IDS.add(ou.id);
+      });
+    }
+    // Also tag facility type in hierarchy
+    (g.organisationUnits || []).forEach(ou => {
+      if (state.orgHierarchy[ou.id]) {
+        state.orgHierarchy[ou.id].facilityType = g.displayName;
+      }
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 1c/1d — Fetch data values
+// ═══════════════════════════════════════════════════════════════════
+async function fetchDataValues(varEntries, periods, stepId) {
+  // Build unique DE+COC list
+  const deCocPairs = varEntries.map(([name, v]) => ({ name, de: v.de, coc: v.coc }));
+  const deIds  = [...new Set(deCocPairs.map(p=>p.de))];
+
+  // Batch: 50 org units (level 5), all DEs, batches of 6 months
+  const ouIds = Object.keys(state.orgHierarchy);
+  const OU_BATCH = 60;
+  const P_BATCH  = 6;
+
+  const ouBatches = [];
+  for (let i=0;i<ouIds.length;i+=OU_BATCH) ouBatches.push(ouIds.slice(i,i+OU_BATCH));
+  const pBatches = [];
+  for (let i=0;i<periods.length;i+=P_BATCH) pBatches.push(periods.slice(i,i+P_BATCH));
+
+  const total = ouBatches.length * pBatches.length;
+  let done = 0;
+
+  if (!state.rawData) state.rawData = {};
+
+  for (const ouBatch of ouBatches) {
+    for (const pBatch of pBatches) {
+      const url = `/api/dataValueSets.json?`+
+        `dataElement=${deIds.join(',')}&`+
+        `orgUnit=${ouBatch.join(',')}&`+
+        `period=${pBatch.join(',')}&`+
+        `children=false`;
+
+      const resp = await dhis2(url);
+      const dvs  = resp.dataValues || [];
+
+      // Build a COC→varName lookup
+      const cocToVarName = {};
+      deCocPairs.forEach(p => { cocToVarName[`${p.de}|${p.coc}`] = p.name; });
+
+      dvs.forEach(dv => {
+        const varName = cocToVarName[`${dv.dataElement}|${dv.categoryOptionCombo}`];
+        if (!varName) return;
+        const ouId    = dv.orgUnit;
+        const period  = dv.period;
+        const val     = parseFloat(dv.value);
+        if (!state.rawData[ouId])           state.rawData[ouId] = {};
+        if (!state.rawData[ouId][period])   state.rawData[ouId][period] = {};
+        state.rawData[ouId][period][varName] = isNaN(val) ? null : val;
+      });
+
+      done++;
+      // Update sub-progress indicator text
+      const pct = done/total*100;
+      setStep(stepId,'running',
+        `Step 1 · Fetching data… batch ${done}/${total} (${Math.round(pct)}%)`);
+      await sleep(80);
+    }
+  }
+}
+
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 2 — IQR Winsorization
+// ═══════════════════════════════════════════════════════════════════
+async function winsorize() {
+  const [pLow, pHigh] = state.config.winsorMode === '25_75' ? [0.25, 0.75] : [0.05, 0.95];
+  state.cleanData = {};
+  state.outlierCount = 0;
+
+  // For each facility, for each year, compute bounds per variable
+  const ouIds = Object.keys(state.rawData);
+  const years = [...new Set(state.config.periods.map(p=>p.slice(0,4)))];
+
+  ouIds.forEach(ouId => {
+    state.cleanData[ouId] = {};
+    const ouData = state.rawData[ouId];
+
+    // Copy all periods, fill NA with 0
+    Object.keys(ouData).forEach(period => {
+      state.cleanData[ouId][period] = {};
+      WIN_TARGETS.forEach(vn => {
+        const raw = ouData[period][vn];
+        // Fill NA with 0
+        state.cleanData[ouId][period][vn] = (raw === null || raw === undefined) ? 0 : raw;
+      });
+    });
+
+    // Per year, per variable: compute bounds from monthly vals
+    years.forEach(yr => {
+      const yearPeriods = state.config.periods.filter(p=>p.startsWith(yr));
+      WIN_TARGETS.forEach(vn => {
+        // Collect monthly values for this ou-year
+        const vals = yearPeriods
+          .map(p => state.cleanData[ouId]?.[p]?.[vn])
+          .filter(v => v !== null && v !== undefined && v !== 0); // exclude 0 from percentile calc
+
+        if (vals.length < 2) return; // too few — skip
+
+        const sorted = [...vals].sort((a,b)=>a-b);
+        const q1 = percentile(sorted, pLow);
+        const q3 = percentile(sorted, pHigh);
+        const iqr = q3 - q1;
+        const lo  = q1 - 1.5 * iqr;
+        const hi  = q3 + 1.5 * iqr;
+
+        yearPeriods.forEach(p => {
+          if (!state.cleanData[ouId]?.[p]) return;
+          const v = state.cleanData[ouId][p][vn];
+          // Skip 0 and null
+          if (v === 0 || v === null || v === undefined) return;
+          if (v < lo) { state.cleanData[ouId][p][vn] = lo; state.outlierCount++; }
+          else if (v > hi) { state.cleanData[ouId][p][vn] = hi; state.outlierCount++; }
+        });
+      });
+    });
+  });
+}
+
+function percentile(sorted, p) {
+  if (!sorted.length) return 0;
+  const idx = p * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo===hi ? sorted[lo] : sorted[lo] + (sorted[hi]-sorted[lo])*(idx-lo);
+}
+
+function countOutliers() { return state.outlierCount || 0; }
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 3 — Compute derived variables
+// ═══════════════════════════════════════════════════════════════════
+function computeVariables() {
+  state.computedData = {};
+
+  Object.keys(state.cleanData).forEach(ouId => {
+    state.computedData[ouId] = {};
+    const ouClean = state.cleanData[ouId];
+
+    Object.keys(ouClean).forEach(period => {
+      const row = { ...ouClean[period] }; // start with cleaned raw vars
+      state.computedData[ouId][period] = row;
+
+      COMPUTE_STEPS.forEach(([outVar, op, inputs]) => {
+        const vals = inputs.map(i => row[i] ?? 0);
+        if (op === 'rowsum') {
+          row[outVar] = vals.reduce((a,b)=>a+b, 0);
+        } else if (op === 'subtract') {
+          row[outVar] = (vals[0] || 0) - (vals[1] || 0);
+        }
+      });
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 3b — MCHP/CHP microscopy exclusion
+// ═══════════════════════════════════════════════════════════════════
+function applyMicroscopyCHPRule() {
+  const mchpCHP = new Set([...MCHP_IDS, ...CHP_IDS]);
+
+  // Recompute conf_hf and test_hf for MCHP/CHP: exclude mic contributions
+  Object.keys(state.computedData).forEach(ouId => {
+    if (!mchpCHP.has(ouId)) return;
+
+    Object.keys(state.computedData[ouId]).forEach(period => {
+      const row = state.computedData[ouId][period];
+      // conf_hf = rdt_pos only (not mic_pos)
+      row['conf_hf'] = row['rdt_pos'] || 0;
+      // test_hf = rdt_neg + rdt_pos only (not mic)
+      row['test_hf'] = (row['rdt_neg'] || 0) + (row['rdt_pos'] || 0);
+      // Re-derive downstream
+      row['conf']   = (row['conf_hf']||0) + (row['conf_com']||0);
+      row['test']   = (row['test_hf']||0) + (row['test_com']||0);
+      row['confirmed_not_treated_hf'] = (row['conf_hf']||0) - (row['maltreat_hf']||0);
+      row['confirmed_not_treated'] = (row['confirmed_not_treated_hf']||0)+(row['confirmed_not_treated_com']||0);
+      row['confirmed_and_treated_hf'] = (row['conf_hf']||0) - (row['confirmed_not_treated_hf']||0);
+      row['confirmed_and_treated'] = (row['confirmed_and_treated_hf']||0)+(row['confirmed_and_treated_com']||0);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 4 — Aggregate
+// ═══════════════════════════════════════════════════════════════════
+const COMPUTED_VARS = [
+  'susp','fever_susp','fever_susp_htr',
+  'mic_neg','mic_pos','rdt_neg','rdt_pos','rdt_htr_neg','rdt_htr_pos',
+  'test_hf','test_com','test',
+  'conf_hf','conf_com','conf',
+  'maltreat_hf','maltreat_com','maltreat',
+  'maltreat_ov24h_hf','maltreat_ov24h_com','maltreat_ov24h',
+  'confirmed_not_treated_hf','confirmed_not_treated_com','confirmed_not_treated',
+  'confirmed_and_treated_hf','confirmed_and_treated_com','confirmed_and_treated',
+  'opd',
+];
+
+function aggregateLevel(level) {
+  // level: 'district' | 'chiefdom' | 'phu'
+  const periods = state.config.periods;
+  const years   = [...new Set(periods.map(p=>p.slice(0,4)))];
+
+  const monthly = {}; // key -> { metadata, vars... }
+  const yearly  = {};
+
+  Object.keys(state.computedData).forEach(ouId => {
+    const ou = state.orgHierarchy[ouId];
+    if (!ou) return;
+
+    let key_monthly_prefix, key_yearly_prefix;
+    let meta_monthly, meta_yearly;
+
+    if (level === 'phu') {
+      key_monthly_prefix = ouId;
+      meta_monthly = { district: ou.districtName, chiefdom: ou.chiefdomName, phu: ou.name, facility_type: ou.facilityType||'' };
+      key_yearly_prefix = ouId;
+      meta_yearly  = { ...meta_monthly };
+    } else if (level === 'chiefdom') {
+      key_monthly_prefix = ou.chiefdomId;
+      meta_monthly = { district: ou.districtName, chiefdom: ou.chiefdomName };
+      key_yearly_prefix = ou.chiefdomId;
+      meta_yearly  = { ...meta_monthly };
+    } else { // district
+      key_monthly_prefix = ou.districtId;
+      meta_monthly = { district: ou.districtName };
+      key_yearly_prefix = ou.districtId;
+      meta_yearly  = { ...meta_monthly };
+    }
+
+    periods.forEach(period => {
+      const row = state.computedData[ouId]?.[period];
+      if (!row) return;
+      const year = period.slice(0,4);
+      const mKey = `${key_monthly_prefix}|${period}`;
+      const yKey = `${key_yearly_prefix}|${year}`;
+
+      // Monthly accumulate
+      if (!monthly[mKey]) {
+        monthly[mKey] = { ...meta_monthly, period };
+        COMPUTED_VARS.forEach(v => monthly[mKey][v] = 0);
+      }
+      COMPUTED_VARS.forEach(v => monthly[mKey][v] += (row[v]||0));
+
+      // Yearly accumulate
+      if (!yearly[yKey]) {
+        yearly[yKey] = { ...meta_yearly, year };
+        COMPUTED_VARS.forEach(v => yearly[yKey][v] = 0);
+      }
+      COMPUTED_VARS.forEach(v => yearly[yKey][v] += (row[v]||0));
+    });
+  });
+
+  state.outputs[`${level}_monthly`] = Object.values(monthly);
+  state.outputs[`${level}_yearly`]  = Object.values(yearly);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  STEP 4d — Build workbooks in memory
+// ═══════════════════════════════════════════════════════════════════
+function buildWorkbooks() {
+  // Just validate; actual XLSX generation happens on download
+  state.wbReady = true;
+}
+
+function makeWorkbook(rows, sheetName) {
+  if (!rows || !rows.length) return null;
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  // Column widths
+  const cols = Object.keys(rows[0]);
+  ws['!cols'] = cols.map(c => ({ wch: Math.max(c.length+2, 12) }));
+  return wb;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  SHOW RESULTS
+// ═══════════════════════════════════════════════════════════════════
+function showResults() {
+  const results = document.getElementById('resultsSection');
+  results.style.display = 'block';
+
+  const totalRows = Object.keys(state.computedData).length;
+  const dlConfig = [
+    { key:'district_yearly',  icon:'📊', label:'District', sub:'Yearly aggregate', color:'#004080' },
+    { key:'district_monthly', icon:'📅', label:'District', sub:'Monthly aggregate',color:'#004080' },
+    { key:'chiefdom_yearly',  icon:'📊', label:'Chiefdom', sub:'Yearly aggregate', color:'#17a2b8' },
+    { key:'chiefdom_monthly', icon:'📅', label:'Chiefdom', sub:'Monthly aggregate',color:'#17a2b8' },
+    { key:'phu_yearly',       icon:'📊', label:'PHU',      sub:'Yearly aggregate', color:'#28a745' },
+    { key:'phu_monthly',      icon:'📅', label:'PHU',      sub:'Monthly aggregate',color:'#28a745' },
+  ];
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-pill">${state.config.periods.length} months processed</div>
+    <div class="stat-pill ok">${totalRows.toLocaleString()} facilities</div>
+    <div class="stat-pill warn">${countOutliers().toLocaleString()} outliers corrected</div>
+    <div class="stat-pill">${MCHP_IDS.size+CHP_IDS.size} MCHP/CHP filtered</div>
+  `;
+
+  const grid = document.getElementById('dlGrid');
+  grid.innerHTML = dlConfig.map(d => `
+    <div class="dl-card" onclick="downloadFile('${d.key}')">
+      <div class="dl-icon">${d.icon}</div>
+      <h4 style="color:${d.color}">${d.label}</h4>
+      <p>${d.sub}</p>
+      <p style="margin-top:4px;font-size:10px;color:#004080;font-weight:700">${(state.outputs[d.key]||[]).length.toLocaleString()} rows</p>
+    </div>
+  `).join('');
+}
+
+function downloadFile(key) {
+  const rows = state.outputs[key];
+  if (!rows || !rows.length) { showAlert('No data for ' + key, 'warn'); return; }
+  const wb = makeWorkbook(rows, key.replace('_',' '));
+  XLSX.writeFile(wb, `NMCP_EPI_Clean_${key}_${state.config.start}_${state.config.end}.xlsx`);
+}
+
+async function downloadAll() {
+  const keys = ['district_yearly','district_monthly','chiefdom_yearly','chiefdom_monthly','phu_yearly','phu_monthly'];
+  for (const k of keys) {
+    const rows = state.outputs[k];
+    if (!rows || !rows.length) continue;
+    const wb = makeWorkbook(rows, k.replace('_',' '));
+    XLSX.writeFile(wb, `NMCP_EPI_Clean_${k}_${state.config.start}_${state.config.end}.xlsx`);
+    await sleep(300);
+  }
+  showAlert('All 6 files downloaded!', 'info');
+}
+
+function resetPipeline() {
+  state = { config:null, orgHierarchy:{}, rawData:{}, cleanData:{}, computedData:{}, outputs:{}, steps:[], stepEls:{} };
+  document.getElementById('pipelineSection').style.display = 'none';
+  document.getElementById('resultsSection').style.display = 'none';
+  document.getElementById('stepList').innerHTML = '';
+  setProgress(0);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  CODE DOWNLOADS
+// ═══════════════════════════════════════════════════════════════════
+function downloadPythonScript() {
+  const cfg = state.config || { start:'2020-01', end:'2024-12', winsorMode:'5_95' };
+  const [pLow, pHigh] = cfg.winsorMode === '25_75' ? [25, 75] : [5, 95];
+
+  const code = `#!/usr/bin/env python3
+"""
+NMCP EPI Data Cleaning Pipeline
+Generated by ICF-SL EPI Data Processing Tool
+Date range : ${cfg.start} → ${cfg.end}
+Winsorization: Q1 = ${pLow}th percentile, Q3 = ${pHigh}th percentile (per facility per year)
+MCHP/CHP rule: microscopy excluded from conf_hf and test_hf for those facility types
+
+Dependencies:
+    pip install requests pandas openpyxl tqdm
+"""
+
+import requests, pandas as pd, numpy as np
+from itertools import product
+from tqdm import tqdm
+
+# ── Configuration ──────────────────────────────────────────────────
+BASE_URL  = "https://sl.dhis2.org/hmis23"
+USERNAME  = "musa-sillahkanu"
+PASSWORD  = "Navigator/2024!"
+SESSION   = requests.Session()
+SESSION.auth = (USERNAME, PASSWORD)
+SESSION.headers.update({"Accept": "application/json"})
+
+START_YM  = "${cfg.start}"   # YYYY-MM
+END_YM    = "${cfg.end}"     # YYYY-MM
+P_LOW     = ${pLow} / 100    # Winsorization lower percentile
+P_HIGH    = ${pHigh} / 100   # Winsorization upper percentile
+OU_LEVEL  = 5                # Health facility (PHU) level
+OU_BATCH  = 60
+P_BATCH   = 6
+
+# ── Data element / COC map ─────────────────────────────────────────
+VAR_MAP = {
+    "fever_susp_0to59m":     ("FJafyE1kzs4","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "fever_susp_5to14y":     ("FJafyE1kzs4","j7j6iaknOFn","ij1VNJwxKCh"),
+    "fever_susp_15py":       ("FJafyE1kzs4","zK1aiw8zFac","ij1VNJwxKCh"),
+    "mic_neg_0to59m":        ("Rijj3Fp9ksg","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "mic_neg_5to14y":        ("Rijj3Fp9ksg","j7j6iaknOFn","ij1VNJwxKCh"),
+    "mic_neg_15py":          ("Rijj3Fp9ksg","zK1aiw8zFac","ij1VNJwxKCh"),
+    "mic_pos_0to59m":        ("Sz13vbo2Qwh","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "mic_pos_5to14y":        ("Sz13vbo2Qwh","j7j6iaknOFn","ij1VNJwxKCh"),
+    "mic_pos_15py":          ("Sz13vbo2Qwh","zK1aiw8zFac","ij1VNJwxKCh"),
+    "rdt_neg_0to59m":        ("mXS2g1AiPsS","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "rdt_neg_5to14y":        ("mXS2g1AiPsS","j7j6iaknOFn","ij1VNJwxKCh"),
+    "rdt_neg_15py":          ("mXS2g1AiPsS","zK1aiw8zFac","ij1VNJwxKCh"),
+    "rdt_pos_0to59m":        ("p6zQLDFjSfd","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "rdt_pos_5to14y":        ("p6zQLDFjSfd","j7j6iaknOFn","ij1VNJwxKCh"),
+    "rdt_pos_15py":          ("p6zQLDFjSfd","zK1aiw8zFac","ij1VNJwxKCh"),
+    "act_lt24h_0to59m":      ("wU8EdHifSLa","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "act_lt24h_5to14y":      ("wU8EdHifSLa","j7j6iaknOFn","ij1VNJwxKCh"),
+    "act_lt24h_15py":        ("wU8EdHifSLa","zK1aiw8zFac","ij1VNJwxKCh"),
+    "act_ov24h_0to59m":      ("XKTCuR0W3YN","m5T8uBNB8aN","ij1VNJwxKCh"),
+    "act_ov24h_5to14y":      ("XKTCuR0W3YN","j7j6iaknOFn","ij1VNJwxKCh"),
+    "act_ov24h_15py":        ("XKTCuR0W3YN","zK1aiw8zFac","ij1VNJwxKCh"),
+    "opd_0to59m":            ("jkVioQxQcnk","HXqTYVuY7MO","ij1VNJwxKCh"),
+    "opd_5py":               ("jkVioQxQcnk","YmxEkqHdy64","ij1VNJwxKCh"),
+    "fever_susp_htr_0to59m": ("wfaQBIVQxWo","NtjMVmRfvHH","nufVxEfy3Ps"),
+    "fever_susp_htr_5to14y": ("wfaQBIVQxWo","qDXW7WMLT99","nufVxEfy3Ps"),
+    "fever_susp_htr_15py":   ("wfaQBIVQxWo","mdjRPpvLKdu","nufVxEfy3Ps"),
+    "rdt_htr_neg_0to59m":    ("YWvx4zYdp92","NtjMVmRfvHH","nufVxEfy3Ps"),
+    "rdt_htr_neg_5to14y":    ("YWvx4zYdp92","qDXW7WMLT99","nufVxEfy3Ps"),
+    "rdt_htr_neg_15py":      ("YWvx4zYdp92","mdjRPpvLKdu","nufVxEfy3Ps"),
+    "rdt_htr_pos_0to59m":    ("T7xH8GwWpEM","NtjMVmRfvHH","nufVxEfy3Ps"),
+    "rdt_htr_pos_5to14y":    ("T7xH8GwWpEM","qDXW7WMLT99","nufVxEfy3Ps"),
+    "rdt_htr_pos_15py":      ("T7xH8GwWpEM","mdjRPpvLKdu","nufVxEfy3Ps"),
+    "act_htr_lt24h_0to59m":  ("h3zJa6hAgib","NtjMVmRfvHH","nufVxEfy3Ps"),
+    "act_htr_lt24h_5to14y":  ("h3zJa6hAgib","qDXW7WMLT99","nufVxEfy3Ps"),
+    "act_htr_lt24h_15py":    ("h3zJa6hAgib","mdjRPpvLKdu","nufVxEfy3Ps"),
+    "act_htr_ov24h_2_59y":   ("Imkks0HAl7E","NtjMVmRfvHH","nufVxEfy3Ps"),
+    "act_htr_ov24h_5_14y":   ("Imkks0HAl7E","qDXW7WMLT99","nufVxEfy3Ps"),
+    "act_htr_ov24h_15y":     ("Imkks0HAl7E","mdjRPpvLKdu","nufVxEfy3Ps"),
+}
+
+# ── Compute steps ──────────────────────────────────────────────────
+COMPUTE_STEPS = [
+    ("fever_susp",              "sum", ["fever_susp_0to59m","fever_susp_5to14y","fever_susp_15py"]),
+    ("fever_susp_htr",          "sum", ["fever_susp_htr_0to59m","fever_susp_htr_5to14y","fever_susp_htr_15py"]),
+    ("susp",                    "sum", ["fever_susp","fever_susp_htr"]),
+    ("mic_neg",                 "sum", ["mic_neg_0to59m","mic_neg_5to14y","mic_neg_15py"]),
+    ("mic_pos",                 "sum", ["mic_pos_0to59m","mic_pos_5to14y","mic_pos_15py"]),
+    ("rdt_neg",                 "sum", ["rdt_neg_0to59m","rdt_neg_5to14y","rdt_neg_15py"]),
+    ("rdt_pos",                 "sum", ["rdt_pos_0to59m","rdt_pos_5to14y","rdt_pos_15py"]),
+    ("rdt_htr_neg",             "sum", ["rdt_htr_neg_0to59m","rdt_htr_neg_5to14y","rdt_htr_neg_15py"]),
+    ("rdt_htr_pos",             "sum", ["rdt_htr_pos_0to59m","rdt_htr_pos_5to14y","rdt_htr_pos_15py"]),
+    ("test_hf",                 "sum", ["mic_neg","mic_pos","rdt_neg","rdt_pos"]),
+    ("test_com",                "sum", ["rdt_htr_neg","rdt_htr_pos"]),
+    ("test",                    "sum", ["test_hf","test_com"]),
+    ("conf_hf",                 "sum", ["mic_pos","rdt_pos"]),
+    ("conf_com",                "sum", ["rdt_htr_pos"]),
+    ("conf",                    "sum", ["conf_hf","conf_com"]),
+    ("maltreat_hf",             "sum", ["act_lt24h_0to59m","act_lt24h_5to14y","act_lt24h_15py"]),
+    ("maltreat_com",            "sum", ["act_htr_lt24h_0to59m","act_htr_lt24h_5to14y","act_htr_lt24h_15py"]),
+    ("maltreat",                "sum", ["maltreat_hf","maltreat_com"]),
+    ("maltreat_ov24h_hf",       "sum", ["act_ov24h_0to59m","act_ov24h_5to14y","act_ov24h_15py"]),
+    ("maltreat_ov24h_com",      "sum", ["act_htr_ov24h_2_59y","act_htr_ov24h_5_14y","act_htr_ov24h_15y"]),
+    ("maltreat_ov24h",          "sum", ["maltreat_ov24h_hf","maltreat_ov24h_com"]),
+    ("confirmed_not_treated_hf","sub", ["conf_hf","maltreat_hf"]),
+    ("confirmed_not_treated_com","sub",["conf_com","maltreat_com"]),
+    ("confirmed_not_treated",   "sum", ["confirmed_not_treated_hf","confirmed_not_treated_com"]),
+    ("confirmed_and_treated_hf","sub", ["conf_hf","confirmed_not_treated_hf"]),
+    ("confirmed_and_treated_com","sub",["conf_com","confirmed_not_treated_com"]),
+    ("confirmed_and_treated",   "sum", ["confirmed_and_treated_hf","confirmed_and_treated_com"]),
+    ("opd",                     "sum", ["opd_0to59m","opd_5py"]),
+]
+
+COMPUTED_VARS = [s[0] for s in COMPUTE_STEPS]
+
+
+def gen_periods(start, end):
+    """Generate list of DHIS2 period strings YYYYMM between start and end (YYYY-MM)."""
+    from datetime import date
+    sy, sm = map(int, start.split("-")); ey, em = map(int, end.split("-"))
+    out = []
+    y, m = sy, sm
+    while (y, m) <= (ey, em):
+        out.append(f"{y}{m:02d}")
+        m += 1
+        if m > 12: m = 1; y += 1
+    return out
+
+
+def dhis2_get(path):
+    r = SESSION.get(BASE_URL + path)
+    r.raise_for_status()
+    return r.json()
+
+
+def fetch_org_hierarchy():
+    print("Fetching org unit hierarchy (level 5 PHUs)...")
+    data = dhis2_get(
+        f"/api/organisationUnits.json?level={OU_LEVEL}"
+        "&fields=id,displayName,ancestors[id,displayName,level]&paging=false"
+    )
+    hierarchy = {}
+    for ou in data.get("organisationUnits", []):
+        anc = sorted(ou.get("ancestors", []), key=lambda a: a["level"])
+        d = next((a for a in anc if a["level"] == 3), None)
+        c = next((a for a in anc if a["level"] == 4), None)
+        hierarchy[ou["id"]] = {
+            "id": ou["id"], "name": ou["displayName"],
+            "district_id":   d["id"]          if d else "",
+            "district_name": d["displayName"] if d else "",
+            "chiefdom_id":   c["id"]          if c else "",
+            "chiefdom_name": c["displayName"] if c else "",
+            "facility_type": "",
+        }
+    print(f"  → {len(hierarchy)} facilities loaded")
+    return hierarchy
+
+
+def fetch_facility_types(hierarchy):
+    print("Loading facility type groups (MCHP / CHP)...")
+    data = dhis2_get(
+        "/api/organisationUnitGroups.json"
+        "?fields=id,displayName,organisationUnits[id]&paging=false"
+    )
+    mchp_ids, chp_ids = set(), set()
+    for g in data.get("organisationUnitGroups", []):
+        name = g["displayName"].upper().strip()
+        is_mchp = name == "MCHP" or name.startswith("MCHP")
+        is_chp  = name == "CHP"  or name.startswith("CHP")
+        for ou in g.get("organisationUnits", []):
+            oid = ou["id"]
+            if is_mchp: mchp_ids.add(oid)
+            if is_chp:  chp_ids.add(oid)
+            if oid in hierarchy:
+                hierarchy[oid]["facility_type"] = g["displayName"]
+    print(f"  → {len(mchp_ids)} MCHP, {len(chp_ids)} CHP identified")
+    return mchp_ids, chp_ids
+
+
+def fetch_data_values(hierarchy, periods):
+    print("Fetching data values from DHIS2...")
+    de_ids   = list({v[0] for v in VAR_MAP.values()})
+    coc_lookup = {(v[0], v[1]): k for k, v in VAR_MAP.items()}
+    ou_ids   = list(hierarchy.keys())
+
+    ou_batches = [ou_ids[i:i+OU_BATCH]  for i in range(0, len(ou_ids),  OU_BATCH)]
+    p_batches  = [periods[i:i+P_BATCH]  for i in range(0, len(periods), P_BATCH)]
+
+    records = []
+    total = len(ou_batches) * len(p_batches)
+    with tqdm(total=total, desc="  Batches") as pbar:
+        for ou_batch in ou_batches:
+            for p_batch in p_batches:
+                url = (
+                    "/api/dataValueSets.json"
+                    f"?dataElement={','.join(de_ids)}"
+                    f"&orgUnit={','.join(ou_batch)}"
+                    f"&period={','.join(p_batch)}&children=false"
+                )
+                resp = dhis2_get(url)
+                for dv in resp.get("dataValues", []):
+                    var_name = coc_lookup.get((dv["dataElement"], dv["categoryOptionCombo"]))
+                    if not var_name: continue
+                    try:
+                        val = float(dv["value"])
+                    except (ValueError, TypeError):
+                        val = np.nan
+                    records.append({
+                        "ou_id":  dv["orgUnit"],
+                        "period": dv["period"],
+                        "var":    var_name,
+                        "value":  val,
+                    })
+                pbar.update(1)
+
+    df = pd.DataFrame(records)
+    if df.empty:
+        return pd.DataFrame()
+    df = df.pivot_table(index=["ou_id","period"], columns="var", values="value", aggfunc="sum")
+    df = df.reset_index()
+    return df
+
+
+def winsorize(df, p_low=${pLow/100}, p_high=${pHigh/100}):
+    """
+    IQR Winsorization per facility per year.
+    - Fill NA → 0 first
+    - Skip correction for 0 and null values
+    - Percentiles computed only from non-zero months in that facility-year window
+    """
+    print("Applying Winsorization...")
+    raw_vars = list(VAR_MAP.keys())
+    df = df.copy()
+    # Fill NA with 0
+    df[raw_vars] = df[raw_vars].fillna(0)
+    df["year"] = df["period"].str[:4]
+
+    outlier_count = 0
+    for var in tqdm(raw_vars, desc="  Variables"):
+        if var not in df.columns: continue
+        for (ou_id, year), grp in df.groupby(["ou_id","year"]):
+            vals = grp[var].replace(0, np.nan).dropna()
+            if len(vals) < 2: continue
+            q1 = np.percentile(vals, p_low * 100)
+            q3 = np.percentile(vals, p_high * 100)
+            iqr = q3 - q1
+            lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+            mask = df.index.isin(grp.index) & (df[var] != 0) & df[var].notna()
+            below = mask & (df[var] < lo)
+            above = mask & (df[var] > hi)
+            outlier_count += below.sum() + above.sum()
+            df.loc[below, var] = lo
+            df.loc[above, var] = hi
+
+    df = df.drop(columns=["year"])
+    print(f"  → {outlier_count} outlier cells corrected")
+    return df
+
+
+def compute_variables(df, mchp_ids, chp_ids):
+    print("Computing derived variables...")
+    mchp_chp = mchp_ids | chp_ids
+
+    for out_var, op, inputs in COMPUTE_STEPS:
+        cols = [c for c in inputs if c in df.columns]
+        if not cols: df[out_var] = 0; continue
+        if op == "sum":
+            df[out_var] = df[cols].fillna(0).sum(axis=1)
+        elif op == "sub":
+            df[out_var] = df[inputs[0]].fillna(0) - df[inputs[1]].fillna(0)
+
+    # MCHP/CHP microscopy exclusion
+    print("  Applying MCHP/CHP microscopy exclusion...")
+    mchp_chp_mask = df["ou_id"].isin(mchp_chp)
+    df.loc[mchp_chp_mask, "conf_hf"]  = df.loc[mchp_chp_mask, "rdt_pos"].fillna(0)
+    df.loc[mchp_chp_mask, "test_hf"]  = (
+        df.loc[mchp_chp_mask, "rdt_neg"].fillna(0) +
+        df.loc[mchp_chp_mask, "rdt_pos"].fillna(0)
+    )
+    df.loc[mchp_chp_mask, "conf"]  = df.loc[mchp_chp_mask, "conf_hf"]  + df.loc[mchp_chp_mask, "conf_com"].fillna(0)
+    df.loc[mchp_chp_mask, "test"]  = df.loc[mchp_chp_mask, "test_hf"]  + df.loc[mchp_chp_mask, "test_com"].fillna(0)
+
+    return df
+
+
+def attach_hierarchy(df, hierarchy):
+    hier_df = pd.DataFrame(hierarchy.values())
+    return df.merge(hier_df, left_on="ou_id", right_on="id", how="left")
+
+
+def aggregate(df, level):
+    """Aggregate to district/chiefdom/phu level, monthly and yearly."""
+    key_cols  = {"district": ["district_id","district_name"],
+                 "chiefdom": ["district_id","district_name","chiefdom_id","chiefdom_name"],
+                 "phu":      ["district_id","district_name","chiefdom_id","chiefdom_name","ou_id","name","facility_type"]}
+    group_m = key_cols[level] + ["period"]
+    group_y = key_cols[level] + ["year"]
+
+    df2 = df.copy()
+    df2["year"] = df2["period"].str[:4]
+    monthly = df2.groupby(group_m)[COMPUTED_VARS].sum().reset_index()
+    yearly  = df2.groupby(group_y)[COMPUTED_VARS].sum().reset_index()
+    return monthly, yearly
+
+
+def save_outputs(outputs, start, end):
+    print("Saving Excel files...")
+    for name, df in outputs.items():
+        fname = f"NMCP_EPI_Clean_{name}_{start}_{end}.xlsx"
+        df.to_excel(fname, index=False, engine="openpyxl")
+        print(f"  Saved: {fname}")
+
+
+def main():
+    periods   = gen_periods(START_YM, END_YM)
+    hierarchy = fetch_org_hierarchy()
+    mchp_ids, chp_ids = fetch_facility_types(hierarchy)
+    raw_df    = fetch_data_values(hierarchy, periods)
+    clean_df  = winsorize(raw_df, P_LOW, P_HIGH)
+    comp_df   = compute_variables(clean_df, mchp_ids, chp_ids)
+    full_df   = attach_hierarchy(comp_df, hierarchy)
+
+    outputs = {}
+    for level in ("district", "chiefdom", "phu"):
+        monthly, yearly = aggregate(full_df, level)
+        outputs[f"{level}_monthly"] = monthly
+        outputs[f"{level}_yearly"]  = yearly
+
+    save_outputs(outputs, START_YM, END_YM)
+    print("\\nDone. 6 clean Excel files saved.")
+
+
+if __name__ == "__main__":
+    main()
+`;
+
+  const blob = new Blob([code], { type: 'text/x-python' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nmcp_epi_clean_${cfg.start}_${cfg.end}.py`;
+  a.click();
+}
+
+function downloadRScript() {
+  const cfg = state.config || { start:'2020-01', end:'2024-12', winsorMode:'5_95' };
+  const [pLow, pHigh] = cfg.winsorMode === '25_75' ? [25, 75] : [5, 95];
+
+  const code = `# ===========================================================
+# NMCP EPI Data Cleaning Pipeline — R Script
+# Generated by ICF-SL EPI Data Processing Tool
+# Date range    : ${cfg.start} → ${cfg.end}
+# Winsorization : Q1 = ${pLow}th pctile, Q3 = ${pHigh}th pctile (per facility per year)
+# MCHP/CHP rule : microscopy excluded from conf_hf / test_hf
+#
+# Required packages:
+#   install.packages(c("httr","dplyr","tidyr","purrr","openxlsx"))
+# ===========================================================
+
+library(httr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(openxlsx)
+
+# ── Configuration ─────────────────────────────────────────────────
+BASE_URL  <- "https://sl.dhis2.org/hmis23"
+USERNAME  <- "musa-sillahkanu"
+PASSWORD  <- "Navigator/2024!"
+START_YM  <- "${cfg.start}"   # YYYY-MM
+END_YM    <- "${cfg.end}"     # YYYY-MM
+P_LOW     <- ${pLow} / 100
+P_HIGH    <- ${pHigh} / 100
+OU_LEVEL  <- 5
+OU_BATCH  <- 60
+P_BATCH   <- 6
+
+auth_header <- authenticate(USERNAME, PASSWORD)
+
+dhis2_get <- function(path) {
+  resp <- GET(paste0(BASE_URL, path), auth_header,
+              accept_json(), timeout(120))
+  stop_for_status(resp)
+  content(resp, as = "parsed", type = "application/json")
+}
+
+# ── Data element / COC map ────────────────────────────────────────
+VAR_MAP <- tibble::tribble(
+  ~var_name,                  ~de,            ~coc,
+  "fever_susp_0to59m",        "FJafyE1kzs4", "m5T8uBNB8aN",
+  "fever_susp_5to14y",        "FJafyE1kzs4", "j7j6iaknOFn",
+  "fever_susp_15py",          "FJafyE1kzs4", "zK1aiw8zFac",
+  "mic_neg_0to59m",           "Rijj3Fp9ksg", "m5T8uBNB8aN",
+  "mic_neg_5to14y",           "Rijj3Fp9ksg", "j7j6iaknOFn",
+  "mic_neg_15py",             "Rijj3Fp9ksg", "zK1aiw8zFac",
+  "mic_pos_0to59m",           "Sz13vbo2Qwh", "m5T8uBNB8aN",
+  "mic_pos_5to14y",           "Sz13vbo2Qwh", "j7j6iaknOFn",
+  "mic_pos_15py",             "Sz13vbo2Qwh", "zK1aiw8zFac",
+  "rdt_neg_0to59m",           "mXS2g1AiPsS", "m5T8uBNB8aN",
+  "rdt_neg_5to14y",           "mXS2g1AiPsS", "j7j6iaknOFn",
+  "rdt_neg_15py",             "mXS2g1AiPsS", "zK1aiw8zFac",
+  "rdt_pos_0to59m",           "p6zQLDFjSfd", "m5T8uBNB8aN",
+  "rdt_pos_5to14y",           "p6zQLDFjSfd", "j7j6iaknOFn",
+  "rdt_pos_15py",             "p6zQLDFjSfd", "zK1aiw8zFac",
+  "act_lt24h_0to59m",         "wU8EdHifSLa", "m5T8uBNB8aN",
+  "act_lt24h_5to14y",         "wU8EdHifSLa", "j7j6iaknOFn",
+  "act_lt24h_15py",           "wU8EdHifSLa", "zK1aiw8zFac",
+  "act_ov24h_0to59m",         "XKTCuR0W3YN", "m5T8uBNB8aN",
+  "act_ov24h_5to14y",         "XKTCuR0W3YN", "j7j6iaknOFn",
+  "act_ov24h_15py",           "XKTCuR0W3YN", "zK1aiw8zFac",
+  "opd_0to59m",               "jkVioQxQcnk", "HXqTYVuY7MO",
+  "opd_5py",                  "jkVioQxQcnk", "YmxEkqHdy64",
+  "fever_susp_htr_0to59m",    "wfaQBIVQxWo", "NtjMVmRfvHH",
+  "fever_susp_htr_5to14y",    "wfaQBIVQxWo", "qDXW7WMLT99",
+  "fever_susp_htr_15py",      "wfaQBIVQxWo", "mdjRPpvLKdu",
+  "rdt_htr_neg_0to59m",       "YWvx4zYdp92", "NtjMVmRfvHH",
+  "rdt_htr_neg_5to14y",       "YWvx4zYdp92", "qDXW7WMLT99",
+  "rdt_htr_neg_15py",         "YWvx4zYdp92", "mdjRPpvLKdu",
+  "rdt_htr_pos_0to59m",       "T7xH8GwWpEM", "NtjMVmRfvHH",
+  "rdt_htr_pos_5to14y",       "T7xH8GwWpEM", "qDXW7WMLT99",
+  "rdt_htr_pos_15py",         "T7xH8GwWpEM", "mdjRPpvLKdu",
+  "act_htr_lt24h_0to59m",     "h3zJa6hAgib", "NtjMVmRfvHH",
+  "act_htr_lt24h_5to14y",     "h3zJa6hAgib", "qDXW7WMLT99",
+  "act_htr_lt24h_15py",       "h3zJa6hAgib", "mdjRPpvLKdu",
+  "act_htr_ov24h_2_59y",      "Imkks0HAl7E", "NtjMVmRfvHH",
+  "act_htr_ov24h_5_14y",      "Imkks0HAl7E", "qDXW7WMLT99",
+  "act_htr_ov24h_15y",        "Imkks0HAl7E", "mdjRPpvLKdu"
+)
+
+# ── Generate periods ──────────────────────────────────────────────
+gen_periods <- function(start, end) {
+  s <- as.Date(paste0(start, "-01")); e <- as.Date(paste0(end, "-01"))
+  seq_dates <- seq(s, e, by = "month")
+  format(seq_dates, "%Y%m")
+}
+
+# ── Fetch org hierarchy ───────────────────────────────────────────
+fetch_org_hierarchy <- function() {
+  message("Fetching org unit hierarchy...")
+  data <- dhis2_get(paste0(
+    "/api/organisationUnits.json?level=", OU_LEVEL,
+    "&fields=id,displayName,ancestors[id,displayName,level]&paging=false"
+  ))
+  purrr::map_dfr(data$organisationUnits, function(ou) {
+    anc <- ou$ancestors[order(sapply(ou$ancestors, "[[", "level"))]
+    d <- Filter(function(a) a$level == 3, anc)
+    c <- Filter(function(a) a$level == 4, anc)
+    tibble::tibble(
+      ou_id         = ou$id,
+      name          = ou$displayName,
+      district_id   = if (length(d)) d[[1]]$id          else NA_character_,
+      district_name = if (length(d)) d[[1]]$displayName else NA_character_,
+      chiefdom_id   = if (length(c)) c[[1]]$id          else NA_character_,
+      chiefdom_name = if (length(c)) c[[1]]$displayName else NA_character_,
+      facility_type = NA_character_
+    )
+  })
+}
+
+# ── Fetch facility types ──────────────────────────────────────────
+fetch_facility_types <- function(hierarchy) {
+  message("Loading facility type groups...")
+  data <- dhis2_get(
+    "/api/organisationUnitGroups.json?fields=id,displayName,organisationUnits[id]&paging=false"
+  )
+  mchp_ids <- character(0); chp_ids <- character(0)
+  for (g in data$organisationUnitGroups) {
+    nm <- toupper(trimws(g$displayName))
+    ids <- sapply(g$organisationUnits, "[[", "id")
+    if (nm == "MCHP" || startsWith(nm, "MCHP")) mchp_ids <- c(mchp_ids, ids)
+    if (nm == "CHP"  || startsWith(nm, "CHP"))  chp_ids  <- c(chp_ids, ids)
+    hierarchy$facility_type[hierarchy$ou_id %in% ids] <- g$displayName
+  }
+  list(hierarchy = hierarchy, mchp_ids = mchp_ids, chp_ids = chp_ids)
+}
+
+# ── Fetch data values ─────────────────────────────────────────────
+fetch_data_values <- function(hierarchy, periods) {
+  message("Fetching data values from DHIS2...")
+  de_ids  <- unique(VAR_MAP$de)
+  ou_ids  <- hierarchy$ou_id
+  coc_key <- paste0(VAR_MAP$de, "|", VAR_MAP$coc)
+  names(coc_key) <- VAR_MAP$var_name
+
+  ou_batches <- split(ou_ids,  ceiling(seq_along(ou_ids)  / OU_BATCH))
+  p_batches  <- split(periods, ceiling(seq_along(periods) / P_BATCH))
+  total <- length(ou_batches) * length(p_batches)
+  done  <- 0L
+
+  records <- list()
+  for (oub in ou_batches) {
+    for (pb in p_batches) {
+      url <- paste0(
+        "/api/dataValueSets.json",
+        "?dataElement=",  paste(de_ids, collapse=","),
+        "&orgUnit=",      paste(oub,    collapse=","),
+        "&period=",       paste(pb,     collapse=","),
+        "&children=false"
+      )
+      resp <- tryCatch(dhis2_get(url), error = function(e) { message("  Batch error: ", e$message); NULL })
+      if (is.null(resp)) { done <- done + 1L; next }
+      dvs <- resp$dataValues
+      if (length(dvs)) {
+        batch_df <- purrr::map_dfr(dvs, function(dv) {
+          key  <- paste0(dv$dataElement, "|", dv$categoryOptionCombo)
+          vn   <- names(coc_key)[coc_key == key]
+          if (!length(vn)) return(NULL)
+          tibble::tibble(ou_id=dv$orgUnit, period=dv$period,
+                         var=vn, value=suppressWarnings(as.numeric(dv$value)))
+        })
+        records <- c(records, list(batch_df))
+      }
+      done <- done + 1L
+      message(sprintf("  Batch %d/%d", done, total), appendLF=FALSE); message("\\r", appendLF=FALSE)
+    }
+  }
+  message("")
+  df <- bind_rows(records)
+  if (nrow(df) == 0) return(tibble::tibble())
+  df %>%
+    group_by(ou_id, period, var) %>% summarise(value=sum(value,na.rm=TRUE), .groups="drop") %>%
+    pivot_wider(names_from=var, values_from=value, values_fill=0)
+}
+
+# ── Winsorization ─────────────────────────────────────────────────
+winsorize_data <- function(df, p_low=${pLow}/100, p_high=${pHigh}/100) {
+  message("Applying Winsorization...")
+  raw_vars <- VAR_MAP$var_name
+  df <- df %>% mutate(year = substr(period, 1, 4))
+  # fill NA with 0
+  df[raw_vars[raw_vars %in% names(df)]] <- lapply(
+    df[raw_vars[raw_vars %in% names(df)]], function(x) replace(x, is.na(x), 0))
+
+  outlier_count <- 0L
+  for (var in raw_vars) {
+    if (!var %in% names(df)) next
+    df <- df %>%
+      group_by(ou_id, year) %>%
+      mutate(!!var := {
+        v <- get(var)
+        nz <- v[v != 0 & !is.na(v)]
+        if (length(nz) < 2) return(v)
+        q1  <- quantile(nz, p_low,  names=FALSE)
+        q3  <- quantile(nz, p_high, names=FALSE)
+        iqr <- q3 - q1
+        lo  <- q1 - 1.5 * iqr
+        hi  <- q3 + 1.5 * iqr
+        pmin(pmax(ifelse(v == 0 | is.na(v), v, v), lo), hi)
+      }) %>% ungroup()
+  }
+  message("  Winsorization complete")
+  df %>% select(-year)
+}
+
+# ── Compute variables ─────────────────────────────────────────────
+rowsum_cols <- function(df, cols) {
+  existing <- cols[cols %in% names(df)]
+  if (!length(existing)) return(rep(0, nrow(df)))
+  rowSums(df[existing], na.rm = TRUE)
+}
+
+compute_variables <- function(df, mchp_ids, chp_ids) {
+  message("Computing derived variables...")
+  df <- df %>%
+    mutate(
+      fever_susp      = rowsum_cols(., c("fever_susp_0to59m","fever_susp_5to14y","fever_susp_15py")),
+      fever_susp_htr  = rowsum_cols(., c("fever_susp_htr_0to59m","fever_susp_htr_5to14y","fever_susp_htr_15py")),
+      susp            = fever_susp + fever_susp_htr,
+      mic_neg         = rowsum_cols(., c("mic_neg_0to59m","mic_neg_5to14y","mic_neg_15py")),
+      mic_pos         = rowsum_cols(., c("mic_pos_0to59m","mic_pos_5to14y","mic_pos_15py")),
+      rdt_neg         = rowsum_cols(., c("rdt_neg_0to59m","rdt_neg_5to14y","rdt_neg_15py")),
+      rdt_pos         = rowsum_cols(., c("rdt_pos_0to59m","rdt_pos_5to14y","rdt_pos_15py")),
+      rdt_htr_neg     = rowsum_cols(., c("rdt_htr_neg_0to59m","rdt_htr_neg_5to14y","rdt_htr_neg_15py")),
+      rdt_htr_pos     = rowsum_cols(., c("rdt_htr_pos_0to59m","rdt_htr_pos_5to14y","rdt_htr_pos_15py")),
+      test_hf         = mic_neg + mic_pos + rdt_neg + rdt_pos,
+      test_com        = rdt_htr_neg + rdt_htr_pos,
+      test            = test_hf + test_com,
+      conf_hf         = mic_pos + rdt_pos,
+      conf_com        = rdt_htr_pos,
+      conf            = conf_hf + conf_com,
+      maltreat_hf     = rowsum_cols(., c("act_lt24h_0to59m","act_lt24h_5to14y","act_lt24h_15py")),
+      maltreat_com    = rowsum_cols(., c("act_htr_lt24h_0to59m","act_htr_lt24h_5to14y","act_htr_lt24h_15py")),
+      maltreat        = maltreat_hf + maltreat_com,
+      maltreat_ov24h_hf  = rowsum_cols(., c("act_ov24h_0to59m","act_ov24h_5to14y","act_ov24h_15py")),
+      maltreat_ov24h_com = rowsum_cols(., c("act_htr_ov24h_2_59y","act_htr_ov24h_5_14y","act_htr_ov24h_15y")),
+      maltreat_ov24h  = maltreat_ov24h_hf + maltreat_ov24h_com,
+      confirmed_not_treated_hf  = conf_hf  - maltreat_hf,
+      confirmed_not_treated_com = conf_com - maltreat_com,
+      confirmed_not_treated     = confirmed_not_treated_hf + confirmed_not_treated_com,
+      confirmed_and_treated_hf  = conf_hf  - confirmed_not_treated_hf,
+      confirmed_and_treated_com = conf_com - confirmed_not_treated_com,
+      confirmed_and_treated     = confirmed_and_treated_hf + confirmed_and_treated_com,
+      opd             = rowsum_cols(., c("opd_0to59m","opd_5py"))
+    )
+
+  # MCHP/CHP microscopy exclusion
+  message("  Applying MCHP/CHP microscopy exclusion...")
+  mchp_chp <- c(mchp_ids, chp_ids)
+  mask <- df$ou_id %in% mchp_chp
+  df$conf_hf[mask] <- df$rdt_pos[mask]
+  df$test_hf[mask] <- df$rdt_neg[mask] + df$rdt_pos[mask]
+  df$conf[mask]    <- df$conf_hf[mask]  + df$conf_com[mask]
+  df$test[mask]    <- df$test_hf[mask]  + df$test_com[mask]
+  df$confirmed_not_treated_hf[mask] <- df$conf_hf[mask]  - df$maltreat_hf[mask]
+  df$confirmed_not_treated[mask]    <- df$confirmed_not_treated_hf[mask] + df$confirmed_not_treated_com[mask]
+  df$confirmed_and_treated_hf[mask] <- df$conf_hf[mask]  - df$confirmed_not_treated_hf[mask]
+  df$confirmed_and_treated[mask]    <- df$confirmed_and_treated_hf[mask] + df$confirmed_and_treated_com[mask]
+  df
+}
+
+# ── Aggregate ─────────────────────────────────────────────────────
+computed_vars <- c(
+  "susp","fever_susp","fever_susp_htr",
+  "mic_neg","mic_pos","rdt_neg","rdt_pos","rdt_htr_neg","rdt_htr_pos",
+  "test_hf","test_com","test","conf_hf","conf_com","conf",
+  "maltreat_hf","maltreat_com","maltreat",
+  "maltreat_ov24h_hf","maltreat_ov24h_com","maltreat_ov24h",
+  "confirmed_not_treated_hf","confirmed_not_treated_com","confirmed_not_treated",
+  "confirmed_and_treated_hf","confirmed_and_treated_com","confirmed_and_treated",
+  "opd"
+)
+
+aggregate_level <- function(df, level) {
+  key_cols <- switch(level,
+    district = c("district_id","district_name"),
+    chiefdom = c("district_id","district_name","chiefdom_id","chiefdom_name"),
+    phu      = c("district_id","district_name","chiefdom_id","chiefdom_name","ou_id","name","facility_type")
+  )
+  cv <- computed_vars[computed_vars %in% names(df)]
+  df2 <- df %>% mutate(year = substr(period, 1, 4))
+  monthly <- df2 %>% group_by(across(all_of(c(key_cols,"period")))) %>%
+    summarise(across(all_of(cv), sum, na.rm=TRUE), .groups="drop")
+  yearly  <- df2 %>% group_by(across(all_of(c(key_cols,"year")))) %>%
+    summarise(across(all_of(cv), sum, na.rm=TRUE), .groups="drop")
+  list(monthly=monthly, yearly=yearly)
+}
+
+# ── Main ──────────────────────────────────────────────────────────
+main <- function() {
+  periods   <- gen_periods(START_YM, END_YM)
+  hierarchy <- fetch_org_hierarchy()
+  ft        <- fetch_facility_types(hierarchy)
+  hierarchy <- ft$hierarchy; mchp_ids <- ft$mchp_ids; chp_ids <- ft$chp_ids
+
+  raw_df    <- fetch_data_values(hierarchy, periods)
+  clean_df  <- winsorize_data(raw_df, P_LOW, P_HIGH)
+  comp_df   <- compute_variables(clean_df, mchp_ids, chp_ids)
+
+  # Attach hierarchy
+  full_df <- comp_df %>%
+    left_join(hierarchy, by="ou_id")
+
+  wb <- createWorkbook()
+  for (level in c("district","chiefdom","phu")) {
+    agg <- aggregate_level(full_df, level)
+    fname_m <- paste0("NMCP_EPI_Clean_", level, "_monthly_", START_YM, "_", END_YM, ".xlsx")
+    fname_y <- paste0("NMCP_EPI_Clean_", level, "_yearly_",  START_YM, "_", END_YM, ".xlsx")
+    write.xlsx(agg$monthly, fname_m, overwrite=TRUE)
+    write.xlsx(agg$yearly,  fname_y, overwrite=TRUE)
+    message("Saved: ", fname_m)
+    message("Saved: ", fname_y)
+  }
+  message("\\nDone. 6 clean Excel files saved.")
+}
+
+main()
+`;
+
+  const blob = new Blob([code], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `nmcp_epi_clean_${cfg.start}_${cfg.end}.R`;
+  a.click();
+}
+</script>
+</body>
+</html>
