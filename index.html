@@ -114,7 +114,14 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
 /* ── Footer ── */
 .page-footer{background:#004080;color:#fff;padding:18px 24px;text-align:center;font-size:12px;line-height:1.7;border-radius:8px;margin-top:20px}
 
-/* ── Responsive ── */
+/* ── Collapsible chart panels ── */
+.collap-panel{border-radius:8px;overflow:hidden;margin-bottom:16px}
+.collap-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none;transition:background .2s}
+.collap-header:hover{filter:brightness(.93)}
+.collap-chevron{transition:transform .3s;flex-shrink:0}
+.collap-body{overflow:hidden;transition:max-height .35s ease,opacity .3s ease;max-height:4000px;opacity:1}
+.collap-body.collapsed{max-height:0;opacity:0}
+
 @media(max-width:768px){
   .card-grid{grid-template-columns:1fr}
   .form-row{grid-template-columns:1fr}
@@ -145,14 +152,14 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
   <!-- 2-CARD GRID -->
   <div class="card-grid">
 
-    <!-- CARD 1: Clean Data -->
+    <!-- CARD 1: Data Preprocessing -->
     <div class="action-card" id="cleanCard" onclick="openCleanModal()">
       <div class="card-head">
         <div class="card-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#004080" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
         </div>
         <div>
-          <h2>CLEAN DATA</h2>
+          <h2>DATA PREPROCESSING</h2>
           <p>Fetch · Winsorize · Compute · Export</p>
         </div>
       </div>
@@ -307,6 +314,16 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
           <input type="text" id="rsYLabel" class="form-control" value="Health Facilities (High to Low Reporting)" style="font-size:12px;padding:8px 10px">
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;display:block;margin-bottom:4px">Width (px)</label>
+          <input type="number" id="rsCanvasW" class="form-control" value="900" min="400" max="3000" step="50" style="font-size:12px;padding:8px 10px">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;display:block;margin-bottom:4px">Height (px)</label>
+          <input type="number" id="rsCanvasH" class="form-control" value="600" min="200" max="2500" step="50" style="font-size:12px;padding:8px 10px">
+        </div>
+      </div>
       <!-- Palette selector -->
       <p style="font-size:11px;font-weight:700;color:#004080;text-transform:uppercase;margin-bottom:8px">Color Palette</p>
       <div id="rsPaletteGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px"></div>
@@ -325,34 +342,50 @@ body{background:#f0f4f8;font-family:'Oswald',Arial,sans-serif;color:#000;font-we
     <!-- Stats -->
     <div class="stats-row" id="rsStatsRow"></div>
 
-    <!-- Chart 1: All Facilities -->
-    <div style="background:#f8f9fa;padding:16px;border-radius:8px;border:2px solid #004080;margin-bottom:16px;text-align:center;overflow-x:auto">
-      <div style="display:inline-block;background:#004080;color:#fff;padding:5px 16px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:10px">CHART 1 — ALL FACILITIES</div>
-      <div style="font-size:16px;font-weight:700;color:#004080;margin-bottom:6px" id="rsChart1Title">NMCP Malaria EPI Reporting Status — All Facilities</div>
-      <div style="font-size:12px;color:#666;margin-bottom:10px" id="rsChart1Sub"></div>
-      <canvas id="rsCanvas1" style="border-radius:6px;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.1);border:2px solid #004080;display:block;margin:0 auto;max-width:100%"></canvas>
-      <div style="margin-top:10px">
-        <button class="action-btn" style="padding:8px 18px;font-size:12px;background:#28a745;border-color:#28a745" onclick="rsDownload('rsCanvas1','all_facilities')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Chart 1 (300 DPI)
-        </button>
+    <!-- Chart 1: All Facilities — collapsible -->
+    <div class="collap-panel" style="border:2px solid #004080">
+      <div class="collap-header" style="background:#004080;color:#fff" onclick="rsToggle('rsChart1Body','rsChev1')">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="background:#fff;color:#004080;padding:3px 12px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:1px">CHART 1 — ALL FACILITIES</span>
+          <span id="rsChart1TitleHeader" style="font-size:13px;font-weight:700;opacity:.9"></span>
+        </div>
+        <svg id="rsChev1" class="collap-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div id="rsChart1Body" class="collap-body" style="background:#f8f9fa;padding:16px;text-align:center;overflow-x:auto">
+        <div style="font-size:15px;font-weight:700;color:#004080;margin-bottom:5px" id="rsChart1Title">NMCP Malaria EPI Reporting Status — All Facilities</div>
+        <div style="font-size:12px;color:#666;margin-bottom:10px" id="rsChart1Sub"></div>
+        <canvas id="rsCanvas1" style="border-radius:6px;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.1);border:2px solid #004080;display:block;margin:0 auto;max-width:100%"></canvas>
+        <div style="margin-top:10px">
+          <button class="action-btn" style="padding:8px 18px;font-size:12px;background:#28a745;border-color:#28a745" onclick="rsDownload('rsCanvas1','all_facilities')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Chart 1 (300 DPI)
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Divider -->
     <hr style="border:none;border-top:3px dashed #004080;margin:16px 0">
 
-    <!-- Chart 2: Active Facilities Only -->
-    <div style="background:#f8f9fa;padding:16px;border-radius:8px;border:2px solid #28a745;margin-bottom:16px;text-align:center;overflow-x:auto">
-      <div style="display:inline-block;background:#28a745;color:#fff;padding:5px 16px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:10px">CHART 2 — ACTIVE FACILITIES ONLY</div>
-      <div style="font-size:16px;font-weight:700;color:#004080;margin-bottom:6px" id="rsChart2Title">NMCP Malaria EPI Reporting Status — Active Facilities Only</div>
-      <div style="font-size:12px;color:#666;margin-bottom:10px" id="rsChart2Sub"></div>
-      <canvas id="rsCanvas2" style="border-radius:6px;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.1);border:2px solid #28a745;display:block;margin:0 auto;max-width:100%"></canvas>
-      <div style="margin-top:10px">
-        <button class="action-btn" style="padding:8px 18px;font-size:12px;background:#28a745;border-color:#28a745" onclick="rsDownload('rsCanvas2','active_facilities')">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Download Chart 2 (300 DPI)
-        </button>
+    <!-- Chart 2: Active Facilities Only — collapsible -->
+    <div class="collap-panel" style="border:2px solid #28a745">
+      <div class="collap-header" style="background:#28a745;color:#fff" onclick="rsToggle('rsChart2Body','rsChev2')">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="background:#fff;color:#28a745;padding:3px 12px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:1px">CHART 2 — ACTIVE FACILITIES ONLY</span>
+          <span id="rsChart2TitleHeader" style="font-size:13px;font-weight:700;opacity:.9"></span>
+        </div>
+        <svg id="rsChev2" class="collap-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div id="rsChart2Body" class="collap-body" style="background:#f8f9fa;padding:16px;text-align:center;overflow-x:auto">
+        <div style="font-size:15px;font-weight:700;color:#004080;margin-bottom:5px" id="rsChart2Title">NMCP Malaria EPI Reporting Status — Active Facilities Only</div>
+        <div style="font-size:12px;color:#666;margin-bottom:10px" id="rsChart2Sub"></div>
+        <canvas id="rsCanvas2" style="border-radius:6px;background:#fff;box-shadow:0 4px 15px rgba(0,0,0,.1);border:2px solid #28a745;display:block;margin:0 auto;max-width:100%"></canvas>
+        <div style="margin-top:10px">
+          <button class="action-btn" style="padding:8px 18px;font-size:12px;background:#28a745;border-color:#28a745" onclick="rsDownload('rsCanvas2','active_facilities')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Chart 2 (300 DPI)
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2148,9 +2181,7 @@ const RS_PALETTES = {
   purpleYellow: { name: 'Purple / Yellow', colors: ['#6f42c1', '#ffc107'], cb: false },
   blackGold:    { name: 'Black / Gold',    colors: ['#212529', '#ffc107'], cb: false },
 };
-const RS_DPI = 3.125; // 300 DPI
 
-// ── Modal open/close ────────────────────────────────────────────────
 function openReportModal() {
   document.getElementById('reportModal').classList.add('open');
 }
@@ -2242,25 +2273,57 @@ async function startReportingPipeline() {
     );
     const ous = ouData.organisationUnits || [];
 
-    // Build hierarchy lookup
-    rsState.orgHierarchy = {};
+    // Build full hierarchy lookup first
+    const fullHierarchy = {};
     ous.forEach(ou => {
       const anc = (ou.ancestors || []).sort((a,b)=>a.level-b.level);
       const district = anc.find(a=>a.level===LEVEL_DISTRICT);
       const chiefdom = anc.find(a=>a.level===LEVEL_CHIEFDOM);
-      rsState.orgHierarchy[ou.id] = {
+      // Extract facility type from last word of name (same approach as Clean Data)
+      const nameParts = (ou.displayName||'').trim().split(/\s+/);
+      const fType     = nameParts[nameParts.length-1].toUpperCase();
+      fullHierarchy[ou.id] = {
         id:           ou.id,
         name:         ou.displayName,
+        fType,                                  // last word of name e.g. "MCHP"
         districtName: district?.displayName || '',
         chiefdomName: chiefdom?.displayName || '',
-        hfCode:       '',  // assigned in step 2
+        hfCode:       '',
       };
     });
 
-    const nFac = ous.length;
-    const nDistricts = new Set(Object.values(rsState.orgHierarchy).map(o=>o.districtName)).size;
+    // Fetch org unit groups to identify the 5 malaria facility types
+    const groupData = await dhis2(
+      `/api/organisationUnitGroups.json?fields=id,displayName,organisationUnits[id]&paging=false`
+    );
+    // Build a Set of facility IDs that belong to MCHP, CHP, CHC, Clinic, or Hospital
+    const allowedFacIds = new Set();
+    (groupData.organisationUnitGroups || []).forEach(g => {
+      const nm = (g.displayName||'').toUpperCase().trim();
+      const keep = nm==='MCHP'||nm.startsWith('MCHP') ||
+                   nm==='CHP' ||nm.startsWith('CHP')  ||
+                   nm==='CHC' ||nm.startsWith('CHC')  ||
+                   nm==='HOSPITAL'||nm.startsWith('HOSPITAL') ||
+                   nm==='CLINIC'  ||nm.startsWith('CLINIC');
+      if (keep) (g.organisationUnits||[]).forEach(ou => allowedFacIds.add(ou.id));
+    });
+
+    // Also accept by last-word of name as a fallback (handles facilities not in any group)
+    const ALLOWED_TYPES = new Set(['MCHP','CHP','CHC','HOSPITAL','CLINIC']);
+
+    // Filter to only the 5 malaria facility types
+    rsState.orgHierarchy = {};
+    Object.entries(fullHierarchy).forEach(([id, ou]) => {
+      if (allowedFacIds.has(id) || ALLOWED_TYPES.has(ou.fType)) {
+        rsState.orgHierarchy[id] = ou;
+      }
+    });
+
+    const nFacTotal   = ous.length;
+    const nFac        = Object.keys(rsState.orgHierarchy).length;
+    const nDistricts  = new Set(Object.values(rsState.orgHierarchy).map(o=>o.districtName)).size;
     rsSetStep('rs1','done',
-      `Hierarchy loaded — ${nFac.toLocaleString()} facilities across ${nDistricts} districts`);
+      `Hierarchy loaded — ${nFac.toLocaleString()} malaria facilities (MCHP/CHP/CHC/Hospital/Clinic) from ${nFacTotal.toLocaleString()} total · ${nDistricts} districts`);
     rsSetProgress(18);
 
     // ── STEP 2: Assign HF codes ─────────────────────────────────────
@@ -2344,8 +2407,20 @@ async function startReportingPipeline() {
     });
 
     const overallRate = ((reportedCount/(reportedCount+notReportedCount))*100).toFixed(1);
+
+    // Reporting rate with never-reporters excluded from denominator:
+    // = reported facility-months / (active facilities × total periods)
+    // where active = facilities with at least 1 report in the entire period
+    const activeFacIds = new Set(
+      rsState.reportData.filter(r=>r.status===1).map(r=>r.hf_uid)
+    );
+    const nActive = activeFacIds.size;
+    const activeDenominator = nActive * periods.length;
+    const activeRate = activeDenominator > 0
+      ? ((reportedCount / activeDenominator) * 100).toFixed(1)
+      : '0.0';
     rsSetStep('rs4','done',
-      `Report status determined — ${reportedCount.toLocaleString()} reported · ${notReportedCount.toLocaleString()} not reported · ${overallRate}% rate`);
+      `Report status determined — ${reportedCount.toLocaleString()} reported · ${notReportedCount.toLocaleString()} not reported · ${activeRate}% reporting rate (active facilities only)`);
     rsSetProgress(86);
 
     // ── STEP 5: Prepare heatmap ─────────────────────────────────────
@@ -2368,11 +2443,11 @@ async function startReportingPipeline() {
 
     // Stats pills
     document.getElementById('rsStatsRow').innerHTML = `
-      <div class="stat-pill">${allHFCodes.length.toLocaleString()} total facilities</div>
+      <div class="stat-pill">${Object.keys(rsState.orgHierarchy).length.toLocaleString()} total facilities</div>
       <div class="stat-pill ok">${activeHFCodes.length.toLocaleString()} active (≥1 report)</div>
-      <div class="stat-pill warn">${neverCount} never reported</div>
+      <div class="stat-pill warn">${neverCount} never reported (excluded from rate)</div>
       <div class="stat-pill">${nPeriods} periods · ${start} → ${end}</div>
-      <div class="stat-pill ok">${overallRate}% overall reporting rate</div>
+      <div class="stat-pill ok">${activeRate}% reporting rate (active facilities only)</div>
     `;
 
     // Draw both heatmaps
@@ -2385,6 +2460,15 @@ async function startReportingPipeline() {
       el.className = 'step-item error';
     });
   }
+}
+
+// ── Toggle collapse ─────────────────────────────────────────────────
+function rsToggle(bodyId, chevId) {
+  const body = document.getElementById(bodyId);
+  const chev = document.getElementById(chevId);
+  const isCollapsed = body.classList.contains('collapsed');
+  body.classList.toggle('collapsed', !isCollapsed);
+  chev.style.transform = isCollapsed ? '' : 'rotate(-90deg)';
 }
 
 // ── Draw / redraw both charts ───────────────────────────────────────
@@ -2407,6 +2491,10 @@ function rsDrawBothCharts() {
 
   document.getElementById('rsChart1Title').textContent = t1;
   document.getElementById('rsChart2Title').textContent = t2;
+  // Also update the header bar mini-titles
+  const h = document.getElementById('rsChartTitle').value || 'NMCP Malaria EPI Reporting Status';
+  document.getElementById('rsChart1TitleHeader').textContent = h + ' — All Facilities';
+  document.getElementById('rsChart2TitleHeader').textContent = h + ' — Active Facilities Only';
   document.getElementById('rsChart1Sub').textContent =
     `${allHFCodes.length.toLocaleString()} facilities · ${rsState.config.start} to ${rsState.config.end}`;
   document.getElementById('rsChart2Sub').textContent =
@@ -2423,13 +2511,17 @@ function rsRedrawCharts() {
   rsDrawBothCharts();
 }
 
-// ── Core heatmap renderer (adapted from the reference heatmap tool) ─
+// ── Core heatmap renderer ────────────────────────────────────────────
 function rsDrawHeatmap(canvasId, hfSubset, title, xLabel, yLabel, palette) {
   const canvas = document.getElementById(canvasId);
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  // Build per-facility lookup from report data
+  // Canvas size from user inputs
+  const cW = parseInt(document.getElementById('rsCanvasW').value) || 900;
+  const cH = parseInt(document.getElementById('rsCanvasH').value) || 600;
+
+  // Build per-facility lookup
   const hfData = {};
   rsState.reportData.forEach(row => {
     if (!hfSubset.includes(row.hf_uid)) return;
@@ -2437,88 +2529,78 @@ function rsDrawHeatmap(canvasId, hfSubset, title, xLabel, yLabel, palette) {
     hfData[row.hf_uid][row.Date] = row.status;
   });
 
-  const dates  = [...new Set(rsState.reportData.map(r=>r.Date))].sort();
+  const dates  = [...new Set(rsState.reportData.map(r => r.Date))].sort();
   const nDates = dates.length;
   const nHFs   = hfSubset.length;
   if (!nHFs || !nDates) return;
 
-  // Sort by reporting rate descending (most reliable at top)
-  const sorted = hfSubset.map(hf => {
-    const rate = dates.filter(d => hfData[hf]?.[d] === 1).length / nDates;
-    return { hf, rate };
-  }).sort((a,b) => b.rate - a.rate);
+  // Sort by reporting rate descending
+  const sorted = hfSubset.map(hf => ({
+    hf, rate: dates.filter(d => hfData[hf]?.[d] === 1).length / nDates
+  })).sort((a, b) => b.rate - a.rate);
   const hfIds = sorted.map(s => s.hf);
 
-  // ── Layout (logical pixel space, then scaled to 300 DPI) ──────────
-  // Cap total heatmap width to ~800px; cell width derived from that
-  const MAX_HEAT_W = 780;
-  const CELL_W  = Math.max(8, Math.floor(MAX_HEAT_W / nDates));
-  const CELL_H  = Math.max(2, Math.min(12, Math.floor(500 / nHFs)));
-  const TITLE_H = 50, LEGEND_H = 36, XLABEL_H = 70, XTITLE_H = 24;
-  const YTITLE_W = 24, R_PAD = 16;
-
-  const heatW = CELL_W * nDates;
-  const heatH = CELL_H * nHFs;
+  // Fixed margins
+  const TITLE_H = 60, LEGEND_H = 40, XLABEL_H = 90, XTITLE_H = 28;
+  const YTITLE_W = 28, R_PAD = 20;
   const mTop  = TITLE_H + LEGEND_H;
   const mBot  = XLABEL_H + XTITLE_H;
   const mLeft = YTITLE_W + 10;
 
-  const logW = mLeft + heatW + R_PAD;
-  const logH = mTop  + heatH + mBot;
-
-  canvas.width  = Math.round(logW * RS_DPI);
-  canvas.height = Math.round(logH * RS_DPI);
-  canvas.style.width  = Math.min(logW, 860) + 'px';
+  // Canvas setup
+  canvas.width  = cW;
+  canvas.height = cH;
+  canvas.style.width  = '100%';
   canvas.style.height = 'auto';
 
-  ctx.scale(RS_DPI, RS_DPI);
-
-  // White background
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, logW, logH);
+  ctx.fillRect(0, 0, cW, cH);
 
+  // Heat area — fractional cells fill available space exactly
+  const heatW = cW - mLeft - R_PAD;
+  const heatH = cH - mTop  - mBot;
+  const CELL_W = heatW / nDates;
+  const CELL_H = heatH / nHFs;
   const startX = mLeft, startY = mTop;
 
-  // ── Title ───────────────────────────────────────────────────────
+  // ── Title ────────────────────────────────────────────────────────
   ctx.fillStyle = '#004080';
   ctx.font = 'bold 16px Oswald, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  rsWrapText(ctx, title, logW/2, 10, logW-40, 22);
+  rsWrapText(ctx, title, cW / 2, 10, cW - 40, 22);
 
-  // ── Legend ──────────────────────────────────────────────────────
-  const legY = TITLE_H + 6, legCX = logW/2;
-  const bW = 20, bH = 14;
-
+  // ── Legend — two swatches ────────────────────────────────────────
+  const legY  = TITLE_H + 6, legCX = cW / 2;
+  const bW = 20, bH = 14, gap = 100;
   ctx.fillStyle = '#f0f4f8';
-  ctx.strokeStyle = '#004080';
-  ctx.lineWidth = 1.5;
-  ctx.fillRect(legCX-140, legY-4, 280, 28);
-  ctx.strokeRect(legCX-140, legY-4, 280, 28);
+  ctx.strokeStyle = '#004080'; ctx.lineWidth = 1.5;
+  ctx.fillRect(legCX - 140, legY - 4, 280, 28);
+  ctx.strokeRect(legCX - 140, legY - 4, 280, 28);
 
   // Not Reported swatch
   ctx.fillStyle = palette.colors[0];
-  ctx.fillRect(legCX-128, legY+2, bW, bH);
+  ctx.fillRect(legCX - 128, legY + 2, bW, bH);
   ctx.strokeStyle = '#555'; ctx.lineWidth = 0.5;
-  ctx.strokeRect(legCX-128, legY+2, bW, bH);
+  ctx.strokeRect(legCX - 128, legY + 2, bW, bH);
   ctx.fillStyle = '#000'; ctx.font = 'bold 12px Oswald, sans-serif';
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText('Not Reported (0)', legCX-102, legY+9);
+  ctx.fillText('Not Reported (0)', legCX - 102, legY + 9);
 
   // Reported swatch
   ctx.fillStyle = palette.colors[1];
-  ctx.fillRect(legCX+10, legY+2, bW, bH);
+  ctx.fillRect(legCX + gap / 2 - 10, legY + 2, bW, bH);
   ctx.strokeStyle = '#555'; ctx.lineWidth = 0.5;
-  ctx.strokeRect(legCX+10, legY+2, bW, bH);
+  ctx.strokeRect(legCX + gap / 2 - 10, legY + 2, bW, bH);
   ctx.fillStyle = '#000'; ctx.font = 'bold 12px Oswald, sans-serif';
-  ctx.fillText('Reported (1)', legCX+36, legY+9);
+  ctx.fillText('Reported (1)', legCX + gap / 2 + 16, legY + 9);
 
-  // ── Cells ───────────────────────────────────────────────────────
+  // ── Cells ────────────────────────────────────────────────────────
   hfIds.forEach((hf, hi) => {
     dates.forEach((date, di) => {
       const status = hfData[hf]?.[date] || 0;
       ctx.fillStyle = status === 1 ? palette.colors[1] : palette.colors[0];
-      ctx.fillRect(startX + di*CELL_W, startY + hi*CELL_H, CELL_W+0.5, CELL_H+0.5);
+      ctx.fillRect(startX + di * CELL_W, startY + hi * CELL_H, CELL_W + 0.5, CELL_H + 0.5);
     });
   });
 
@@ -2526,40 +2608,40 @@ function rsDrawHeatmap(canvasId, hfSubset, title, xLabel, yLabel, palette) {
   ctx.strokeStyle = '#004080'; ctx.lineWidth = 2;
   ctx.strokeRect(startX, startY, heatW, heatH);
 
-  // ── X-axis labels (rotated 90°) ─────────────────────────────────
-  ctx.fillStyle = '#111'; ctx.font = 'bold 11px Oswald, sans-serif';
+  // ── X-axis labels (rotated 90°) ──────────────────────────────────
+  ctx.fillStyle = '#111111'; ctx.font = 'bold 11px Oswald, sans-serif';
   ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  const labelInterval = CELL_W >= 12 ? 1 : Math.ceil(14/CELL_W);
+  const labelInterval = CELL_W >= 12 ? 1 : Math.ceil(14 / CELL_W);
   dates.forEach((date, di) => {
     if (di % labelInterval !== 0) return;
-    const cx = startX + di*CELL_W + CELL_W/2;
+    const cx = startX + di * CELL_W + CELL_W / 2;
     ctx.save();
     ctx.translate(cx, startY + heatH + 6);
-    ctx.rotate(-Math.PI/2);
+    ctx.rotate(-Math.PI / 2);
     ctx.fillText(date, 0, 0);
     ctx.restore();
   });
 
-  // ── X-axis title ────────────────────────────────────────────────
+  // ── X-axis title ─────────────────────────────────────────────────
   ctx.fillStyle = '#004080'; ctx.font = 'bold 13px Oswald, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-  ctx.fillText(xLabel, startX + heatW/2, logH - 4);
+  ctx.fillText(xLabel, startX + heatW / 2, cH - 4);
 
-  // ── Y-axis title ────────────────────────────────────────────────
+  // ── Y-axis title ─────────────────────────────────────────────────
   ctx.save();
   ctx.fillStyle = '#004080'; ctx.font = 'bold 13px Oswald, sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.translate(14, startY + heatH/2);
-  ctx.rotate(-Math.PI/2);
+  ctx.translate(14, startY + heatH / 2);
+  ctx.rotate(-Math.PI / 2);
   ctx.fillText(yLabel, 0, 0);
   ctx.restore();
 
-  // ── Footer ──────────────────────────────────────────────────────
-  ctx.fillStyle = '#888'; ctx.font = '10px Oswald, sans-serif';
+  // ── Footer ───────────────────────────────────────────────────────
+  ctx.fillStyle = '#888888'; ctx.font = '10px Oswald, sans-serif';
   ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
   ctx.fillText(
-    `${nHFs.toLocaleString()} facilities x ${nDates} periods | ICF-SL / NMCP`,
-    logW - 5, logH - 4
+    `${nHFs.toLocaleString()} facilities × ${nDates} periods | ICF-SL / NMCP`,
+    cW - 5, cH - 4
   );
 }
 
