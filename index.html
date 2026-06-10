@@ -2450,10 +2450,12 @@ function rsDrawHeatmap(canvasId, hfSubset, title, xLabel, yLabel, palette) {
   const hfIds = sorted.map(s => s.hf);
 
   // ── Layout (logical pixel space, then scaled to 300 DPI) ──────────
-  const CELL_W  = Math.max(18, Math.floor(900 / nDates));
-  const CELL_H  = Math.max(3,  Math.min(18, Math.floor(700 / nHFs)));
-  const TITLE_H = 60, LEGEND_H = 40, XLABEL_H = 90, XTITLE_H = 28;
-  const YTITLE_W = 28, R_PAD = 20;
+  // Cap total heatmap width to ~800px; cell width derived from that
+  const MAX_HEAT_W = 780;
+  const CELL_W  = Math.max(8, Math.floor(MAX_HEAT_W / nDates));
+  const CELL_H  = Math.max(2, Math.min(12, Math.floor(500 / nHFs)));
+  const TITLE_H = 50, LEGEND_H = 36, XLABEL_H = 70, XTITLE_H = 24;
+  const YTITLE_W = 24, R_PAD = 16;
 
   const heatW = CELL_W * nDates;
   const heatH = CELL_H * nHFs;
@@ -2466,7 +2468,7 @@ function rsDrawHeatmap(canvasId, hfSubset, title, xLabel, yLabel, palette) {
 
   canvas.width  = Math.round(logW * RS_DPI);
   canvas.height = Math.round(logH * RS_DPI);
-  canvas.style.width  = Math.min(logW, 1300) + 'px';
+  canvas.style.width  = Math.min(logW, 860) + 'px';
   canvas.style.height = 'auto';
 
   ctx.scale(RS_DPI, RS_DPI);
